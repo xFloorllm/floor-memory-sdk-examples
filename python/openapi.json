@@ -1,0 +1,2891 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Floor Memory",
+    "description": "The set APIs are used to develop Floor pds which can be used as their personal assistants. \n\nThis set of APIs are divided into two parts. \n- Memory and \n- Registration.\n \nThe developer has two ways of using the APIs for the app development. Developer can choose to the  Registration APIs for using the existing xfloor infracture or can implement custom Registration process. In the case of custom registration process, the developer is bound to provide proper authentication mechanisms and then send the user information to xlfoor.",
+    "version": "1.0.0",
+    "summary": "",
+    "license": {
+      "name": "MIT",
+      "url": "https://xfloor.ai/ipomo/blog1551084548304/1642341504453"
+    },
+    "termsOfService": "https://xfloor.ai/ipomo/blog1551084548304/1642341504453",
+    "contact": {
+      "name": "Ipomo",
+      "email": "contact@ipomo.in",
+      "url": "https://xfloor.ai/ipomo/blog1551084548304/"
+    }
+  },
+  "tags": [
+    {
+      "name": "query"
+    },
+    {
+      "name": "event"
+    },
+    {
+      "name": "getRecentEvents"
+    },
+    {
+      "name": "getFloorInformation"
+    },
+    {
+      "name": "editFloor"
+    }
+  ],
+  "paths": {
+    "/agent/memory/query": {
+      "post": {
+        "summary": "Query (Primary API)",
+        "deprecated": false,
+        "description": "# **Conversational Query API**\nThis is the **core API** of xfloor.\n\nIt accepts a natural language query and returns a conversational response\nderived from:\n- Content ingested into the specified Floor\n- The user’s prior conversation history (if provided)\n- Relevant metadata and context\n\nThis API is designed for **multi-turn conversations** and can be used\nto build:\n- AI chatbots\n- Knowledge assistants\n- Floor-specific copilots\n\nThis API enables **conversational, context-aware querying** over data stored within xfloor.\n\nIt accepts a natural language query (for example, *“What options do I have in your institute?”*) and returns relevant information derived from the specified floors and their associated content.\n\nThe API is designed for **multi-turn conversations**. Follow-up questions from the same user automatically build upon prior context, allowing the system to refine, expand, or clarify results across successive calls.\n\n---\n\n## **Core Capabilities**\n\n* Interprets **natural language queries**\n* Retrieves relevant information from one or more floors\n* Applies **time-, type-, and tag-based filters**\n* Supports **Top-K retrieval** for result control\n* Optionally includes metadata with responses\n* Can generate **summarized responses** when requested\n* Maintains **conversation continuity** across multiple queries from the same user\n\n---\n\n## **Authentication & Identity**\n\n* A valid `user_id` is **required**\n* User authentication is assumed to be completed **before** calling this API\n* `app_id` identifies the calling application context\n* Conversational continuity is maintained **per `user_id`**\n\n> **Note:** All queries from the same `user_id` are treated as part of a single conversational context unless explicitly reset by the application.\n\n---\n\n## **Request Contract**\n\n### **HTTP Method**\n\n`POST`\n\n### **Content-Type**\n\n```\napplication/json\n```\n\n> **Important:**\n> This API accepts **JSON requests only**.\n> `multipart/form-data` is **not supported**.\n\n---\n\n## **Request Body (JSON)**\n\n### **Field Descriptions**\n\n| Field               | Type                    | Required | Description                                                                                    |\n| ------------------- | ----------------------- | -------- | ---------------------------------------------------------------------------------------------- |\n| `user_id`           | string                  | Yes      | Unique xfloor user identifier. Used to maintain conversational continuity and personalization. |\n| `query`             | string                  | Yes      | Natural language query provided by the user.                                                   |\n| `floor_ids`         | array of strings        | Yes      | List of floor identifiers that define the search scope. Must be provided as a JSON array.      |\n| `filters`           | object                  | Optional | Additional constraints to narrow search results.                                               |\n| `filters.time_from` | string (ISO-8601)       | Optional | Start timestamp for filtering content by creation or update time.                              |\n| `filters.time_to`   | string (ISO-8601)       | Optional | End timestamp for filtering content by creation or update time.                                |\n| `filters.types`     | array of strings        | Optional | Content types to include (e.g., `post`, `blog`, `forum`).                                      |\n| `filters.tags`      | array of strings        | Optional | Tags used to further refine results.                                                           |\n| `k`                 | integer                 | Optional | Maximum number of results to retrieve (Top-K). Defaults to system-defined behavior if omitted. |\n| `include_metadata`  | string (`\"0\"` or `\"1\"`) | Optional | Whether to include metadata (source, timestamps, tags) in the response. Defaults to `\"0\"`.     |\n| `summary_needed`    | string (`\"0\"` or `\"1\"`) | Optional | Whether a summarized conversational answer should be generated. Defaults to `\"0\"`.             |\n| `app_id`            | string                  | Optional | Identifies the application invoking the API. Useful for multi-app integrations.                |\n\n---\n\n### **Important Encoding Rules**\n\n* `floor_ids` **must** be provided as a JSON array\n\n  ```json\n  \"floor_ids\": [\"floor_1\", \"floor_2\"]\n  ```\n* Boolean-style flags (`include_metadata`, `summary_needed`) are encoded as **string values**: `\"0\"` or `\"1\"`\n* `filters` must be provided as a **JSON object**, not a string\n\n---\n\n### **Canonical Request Example**\n\n```json\n{\n  \"user_id\": \"xf_user_123\",\n  \"query\": \"What options do I have in your institute?\",\n  \"floor_ids\": [\"institute_floor\"],\n  \"filters\": {\n    \"types\": [\"post\", \"blog\"],\n    \"tags\": [\"admissions\"]\n  },\n  \"k\": 5,\n  \"include_metadata\": \"1\",\n  \"summary_needed\": \"1\",\n  \"app_id\": \"student_portal\"\n}\n```\n\n---\n\n## **Behavior**\n\n1. The query is analyzed using conversational and semantic understanding.\n2. Relevant content is retrieved from the specified floors.\n3. Filters (time, type, tags) are applied if provided.\n4. Results are ranked and limited based on `k`.\n5. If `summary_needed = \"1\"`, a synthesized conversational summary is generated.\n6. If `include_metadata = \"1\"`, metadata is attached to each result item.\n7. The response is returned in a conversational format suitable for follow-up questions.\n\n---\n\n## **Response Contract**\n\n### **High-Level Response Structure**\n\n```json\n{\n  \"answer\": \"Assistant-generated conversational response\",\n  \"items\": [\n    {\n      \"id\": \"content_id\",\n      \"type\": \"post\",\n      \"text\": \"Original content snippet\",\n      \"metadata\": { }\n    }\n  ]\n}\n```\n\n---\n\n### **Response Field Semantics**\n\n| Field              | Always Present     | Description                                 | Rendering Guidance     |\n| ------------------ | ------------------ | ------------------------------------------- | ---------------------- |\n| `answer`           | Yes                | Assistant-generated conversational response | **Render prominently** |\n| `items`            | Yes (may be empty) | List of matched content used for grounding  | Render optionally      |\n| `items[].metadata` | Conditional        | Included only if `include_metadata = \"1\"`   | Render on demand       |\n\n> **No-Result Case:**\n> If no relevant content is found, `items` will be an empty array and `answer` will contain a conversational fallback response.\n\n---\n\n## **Conversation Continuity**\n\n* Conversation state is maintained **per `user_id`**\n* Follow-up queries automatically reference prior context\n* The API does not require explicit conversation IDs\n* Applications may reset conversation context by using a new `user_id`\n\n---\n\n## **Error Handling**\n\nThe API may return errors in the following cases:\n\n* Missing or invalid `user_id`\n* Empty or unsupported `query`\n* Invalid or inaccessible `floor_ids`\n* Authorization or application context errors\n* Internal processing failures\n\nAll errors are returned with appropriate HTTP status codes and descriptive messages.\n\n---\n\n## **Typical Use Case Flow**\n\n1. User asks an initial question\n   *“What options do I have in your institute?”*\n2. Application calls `/agent/memory/query`\n3. Results are displayed to the user\n4. User asks a follow-up\n   *“Which ones are available on weekends?”*\n5. Application calls the same API again with the new query\n6. Conversation continues seamlessly using prior context\n\n---\n\n## **One-Line Summary**\n\n> Executes a conversational query over xfloor content, returning context-aware, filtered, and optionally summarized results with support for multi-turn interactions.\n\n",
+        "operationId": "query",
+        "tags": [
+          "query"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "string",
+                    "description": "User ID"
+                  },
+                  "query": {
+                    "type": "string",
+                    "description": "Query text for conversations"
+                  },
+                  "floor_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "List of floor IDs"
+                  },
+                  "include_metadata": {
+                    "type": "string",
+                    "description": "Include meta data or not"
+                  },
+                  "summary_needed": {
+                    "type": "string",
+                    "description": "Need LLM summary for the lists of posts sent"
+                  },
+                  "app_id": {
+                    "type": "string",
+                    "description": "App ID"
+                  },
+                  "filters": {
+                    "type": "object",
+                    "properties": {
+                      "time_from": {
+                        "type": "string",
+                        "description": "Start timestamp for filtering content by creation or update time."
+                      },
+                      "time_to": {
+                        "type": "string",
+                        "description": "End timestamp for filtering content by creation or update time."
+                      },
+                      "filter_types": {
+                        "type": "string",
+                        "description": "Content types to include (e.g., post, forum)."
+                      },
+                      "filter_tags": {
+                        "type": "string",
+                        "description": "Tags used to further refine the query results."
+                      }
+                    },
+                    "description": "JSON format filters",
+                    "required": [
+                      "time_from",
+                      "filter_types",
+                      "filter_tags",
+                      "time_to"
+                    ]
+                  }
+                },
+                "required": [
+                  "user_id",
+                  "query",
+                  "floor_ids"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Primary response payload containing assistant output and retrieved content.\n\nThis response represents the successful execution of a **conversational query** processed by the agent.\n\nThe API performs:\n\n1. Interpretation of the user’s query\n2. Optional retrieval of relevant content (posts/events/blocks)\n3. Generation of a final **natural-language answer**\n\nThe response contains **two logical parts**:\n\n* **`answer`** → the assistant’s final conversational response (what should be shown to the user)\n* **`items`** → the list of retrieved content items that were matched and used (or considered) during answer generation\n\n---\n\n## Response Structure\n\n```json\n{\n  \"answer\": \"string\",\n  \"items\": [ ... ]\n}\n```\n\n---\n\n## Top-Level Fields\n\n| Field    | Type   | Description                                               |\n| -------- | ------ | --------------------------------------------------------- |\n| `answer` | String | Final assistant-generated response to the user query      |\n| `items`  | Array  | List of matched content items retrieved during processing |\n\n---\n\n## `answer`\n\n```json\n\"answer\": \"non veniam reprehenderit labore\"\n```\n\n### Description\n\n* This is the **final conversational output** generated by the agent.\n* It is intended to be **directly rendered** in the chat or UI.\n* The content may be:\n\n  * A direct answer\n  * A summary\n  * A synthesized response based on retrieved items\n\n---\n\n## `items[]` – Retrieved Content Items\n\nEach entry in `items` represents a **content block or event** that matched the query.\n\nThese items are typically used for:\n\n* Explainability (“why this answer?”)\n* Debugging or analytics\n* Showing sources or related content (optional UI)\n\n---\n\n### Item Object Structure\n\n```json\n{\n  \"block_type\": 25453249,\n  \"block_id\": \"96\",\n  \"floor_uid\": \"87\",\n  \"event_id\": \"59\",\n  \"text\": \"Deficio cruentus voluptatem...\",\n  \"score\": -80399794.92417637,\n  \"block_title\": \"furthermore separately skeleton...\",\n  \"block_details\": \"Duis magna dolore\",\n  \"from_floor_uid\": \"73\",\n  \"user_id\": \"32\",\n  \"match_type\": \"culpa mollit\"\n}\n```\n\n---\n\n### Item Fields\n\n| Field            | Type   | Description                                                              |\n| ---------------- | ------ | ------------------------------------------------------------------------ |\n| `block_type`     | Number | Identifier of the block type (e.g., feed, blog, forum, quiz)             |\n| `block_id`       | String | Unique identifier of the block containing the content                    |\n| `block_title`    | String | Title of the block                                                       |\n| `block_details`  | String | Description or metadata associated with the block                        |\n| `event_id`       | String | Identifier of the specific event/post within the block                   |\n| `floor_uid`      | String | Internal floor ID where the content belongs                              |\n| `from_floor_uid` | String | Source floor ID (used when content is derived, federated, or aggregated) |\n| `user_id`        | String | Identifier of the user who created the content                           |\n| `text`           | String | Content text used for matching or retrieval                              |\n| `score`          | Number | Similarity or relevance score assigned by the retrieval system           |\n| `match_type`     | String | Type or category of match (e.g., semantic, keyword, hybrid)              |\n\n---\n\n## Interpretation of `score`\n\n* Higher relevance is typically indicated by **better score ranking** (interpretation depends on backend logic)\n* Scores may be positive or negative depending on normalization and similarity model\n* Clients should **not rely on absolute score values**, only relative ordering\n\n---\n\n## Typical Usage Patterns\n\n### Chat UI\n\n* Display only `answer`\n* Ignore `items` unless showing “Sources” or “Related content”\n\n### Debug / Analytics\n\n* Inspect `items` to understand what content influenced the answer\n* Use `score`, `match_type`, and block metadata\n\n### Explainable AI\n\n* Show selected `items` as citations or expandable references\n\n---\n\n## Notes for Developers\n\n* `items` may be an empty array if no relevant content was retrieved\n* The `answer` is always present on success\n* The order of `items` is typically sorted by relevance\n* Field values and score scales are implementation-specific and may evolve\n\n---\n\n## Minimal Mental Model\n\n> **Answer** = what the agent says\n> **Items** = what the agent looked at\n\n",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QueryResponse"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "422": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "description": "Error Message"
+                        }
+                      },
+                      "required": [
+                        "message"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "message": "Floor IDs not present"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/memory/events": {
+      "post": {
+        "summary": "Create Event (Post Content)",
+        "deprecated": false,
+        "description": "Posts into the given floor_id. This is asynchronous ingestion. 200 OK means queued, not immediately retrievable.\nThis API allows a user to **post personal content into their POD (Personal Object Database)**.\nThe posted content is stored under a specified **floor**, embedded by the platform, and made available for **semantic querying, conversational retrieval, and memory-based interactions**.\n\nIt is primarily used to:\n\n* Save reminders, notes, writeups, or personal knowledge\n* Upload content that the user wants the system to remember\n* Add information that should later be discoverable via conversational queries\n\nThe content may consist of **text only** or **text combined with one or more media files**.\n\n---\n\n## **Key Capabilities**\n\n* Stores user-generated content inside a specific floor\n* Supports **multi-modal inputs** (text + media)\n* Automatically embeds content for semantic search\n* Makes content available to:\n\n  * `/agent/memory/query`\n  * conversational agents\n  * future recall and analytics\n* Associates content with user, block, and application context\n\n---\n\n## **Authentication**\n\n* Requires a valid, authenticated `user_id`\n* The calling application is responsible for user authentication\n* `app_id` identifies the application context\n\n---\n\n## **Request Type**\n\n**Content-Type:** `multipart/form-data`\n\n---\n\n## **Request Parameters**\n\n### **1. Files (Optional)**\n\n| Field   | Type   | Required | Description                                                           |\n| ------- | ------ | -------- | --------------------------------------------------------------------- |\n| `files` | file[] | Optional | Media files to attach to the content. Multiple files may be uploaded. |\n\n**Supported formats include (but are not limited to):**\n\n* Images: `jpg`, `png`\n* Audio: `mp3`\n* Documents: `pdf`\n* Video: `mp4`\n\nThese files are processed and embedded along with the textual content where applicable.\n\n---\n\n### **2. Input Information (Required)**\n\n| Field        | Type          | Required | Description                                                       |\n| ------------ | ------------- | -------- | ----------------------------------------------------------------- |\n| `input_info` | string (JSON) | Yes      | JSON string containing metadata and textual content for the post. |\n\n---\n\n## **`input_info` Structure**\n\n```json\n{\n  \"floor_id\": \"my_floor\",\n  \"BID\": \"17845683456\",\n  \"user_id\": \"145623907625\",\n  \"title\": \"My floor\",\n  \"description\": \"My floor details\",\n  \"app_id\": \"165434879028\"\n}\n```\n\n---\n\n### **Field Descriptions**\n\n| Field         | Type   | Required | Description                                                                        |\n| ------------- | ------ | -------- | ---------------------------------------------------------------------------------- |\n| `floor_id`    | string | Yes      | Identifier of the user’s floor (POD) where the content will be stored.             |\n| `block_type`  | string | Yes      | Type of block under which the content is categorized (e.g., post, note, reminder). |\n| `BID`         | string | Yes      | Block identifier associated with this content.                                     |\n| `user_id`     | string | Yes      | Unique identifier of the user posting the content.                                 |\n| `title`       | string | Optional | Title or short heading for the content.                                            |\n| `description` | string | Yes      | Main textual content to be stored and embedded.                                    |\n| `app_id`      | string | Optional | Identifier of the calling application.                                             |\n\n---\n\n## **Behavior**\n\n1. The API validates the user and floor context.\n2. Textual content (`title` and `description`) is ingested.\n3. Attached media files are processed and linked to the content.\n4. Embeddings are generated for:\n\n   * Text\n   * Supported media (where applicable)\n5. The content becomes part of the user’s **personal memory store**.\n6. The stored data is immediately available for querying and conversational retrieval.\n\n---\n\n## **Successful Response**\n\nOn success, the API confirms that:\n\n* The content has been stored\n* Embeddings have been generated\n* The memory item is available for future queries\n\nA success status and reference identifiers are returned.\n\n---\n\n## **Error Handling**\n\nThe API may return errors if:\n\n* Required fields are missing (`floor_id`, `user_id`, `description`)\n* Unsupported file formats are uploaded\n* The user does not have access to the specified floor\n* The request payload is malformed\n* Internal embedding or storage operations fail\n\n---\n\n## **Typical Use Cases**\n\n* Saving personal reminders\n* Posting notes or observations\n* Uploading documents for future reference\n* Creating a personal knowledge base\n* Feeding data into conversational agents\n\n---\n\n## **One-Line Summary**\n\n> Stores user-generated text and media into a personal POD, embeds it for semantic search, and makes it available for conversational querying.\n\n⚠️ Content Ingestion is Asynchronous\n\nThe Create Event API queues content for processing.\nA successful response indicates **acceptance**, not availability.\n\nNewly ingested content may take time to become searchable\nvia the Query API.\n\n",
+        "operationId": "event",
+        "tags": [
+          "event"
+        ],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "encoding": {
+                "files": {
+                  "contentType": "image/jpeg"
+                }
+              },
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "files": {
+                    "format": "binary",
+                    "type": "string",
+                    "description": "Attach relevant media here, which includes, jpg, mp3, pdf, mp4 files. More than one media can be selected",
+                    "example": [
+                      ""
+                    ]
+                  },
+                  "input_info": {
+                    "type": "string",
+                    "description": "Input parameters, bid is optional",
+                    "example": "{ \"floor_id\": \"my_floor\",   \"bid\": \"17845683456\",    \"user_id\": \"145623907625\",    \"title\": \"My floor\",    \"description\": \"My floor details\", \"app_id\": \"165434879028\"}"
+                  }
+                },
+                "required": [
+                  "input_info"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "## **Successful Response (200 OK)**\n\nThis API follows an **asynchronous ingestion model**.\n\nOn success, the API **confirms acceptance of the content**, but **does not guarantee immediate availability** for retrieval or querying.\n\n### **What the response means**\n\nA `200 OK` response indicates that:\n\n* The request payload is valid\n* The content has been **accepted and queued** for processing\n* The content has been published to the internal event pipeline (RabbitMQ)\n* Embedding and storage will occur asynchronously\n\n⚠️ **Important:**\nThe newly posted content **will not appear immediately** in query or feed APIs.\n\n---\n\n## **Response Body (Example)**\n\n```json\n{\n  \"status\": \"success\",\n  \"message\": \"Content accepted for processing\"\n}\n```\n\n> No content data is returned in this response.\n\n---\n\n## **Availability & Retrieval Model**\n\nAfter receiving a successful response:\n\n1. The content is processed asynchronously\n2. The content becomes available in the floor feed **after processing completes**\n3. Developers must retrieve the content using:\n\n```\nGET /api/memory/recent/events\n```\n\n---\n\n## **Polling Requirement**\n\nBecause ingestion is asynchronous:\n\n* Developers **must poll** `/api/memory/recent/events`\n* Polling should be done using:\n\n  * `floor_id`\n  * timestamp or last-known event marker\n* Compare previously retrieved events with new responses to detect newly added content\n\nThis design ensures:\n\n* High ingestion throughput\n* Non-blocking uploads\n* Reliable embedding and storage pipelines\n\n---\n\n## **Typical Developer Flow**\n\n```text\nPOST /api/memory/events\n        ↓\n200 OK (content queued)\n        ↓\nPoll /api/memory/recent/events\n        ↓\nDetect new event\n        ↓\nUse content in /agent/memory/query\n```\n\n---\n\n## **Key Design Note (Why This Exists)**\n\nThis API is intentionally asynchronous to:\n\n* Support large files and multi-modal uploads\n* Avoid request timeouts during embedding\n* Enable scalable background processing\n* Keep write latency low\n\n---\n\n## **One-Line Summary**\n\n> Accepts user-generated text and media, queues it for asynchronous processing, and makes it available for retrieval via the recent events API after ingestion completes.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventResponse"
+                },
+                "example": {
+                  "success": "Sent to the queue"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Invalid block type or Invalid Bid type"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "Invalid BID",
+                    "path": "/api/memory/events",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/memory/recent/events": {
+      "get": {
+        "summary": "Recent Events",
+        "deprecated": false,
+        "description": "This API retrieves the **latest posts (events)** from a specified floor.\n\nThe behaviour of the API changes based on whether a **user ID** is provided:\n\n* **If `user_id` is provided**\n  → The API returns **recent posts relevant to that user**, scoped within the given floor.\n  This includes posts from:\n\n  * Floors the user follows\n  * Floors created by the user\n  * Pod floors associated with the user (if applicable)\n\n* **If `user_id` is NOT provided**\n  → The API returns the **most recent posts available in the specified floor**, without user-specific filtering.\n\nThis makes the API suitable for:\n\n* Personalized activity feeds\n* Floor-level public timelines\n* Pod-based content aggregation\n* Developer-built pods and custom clients\n\n---\n\n## **Key Concepts**\n\n* A **floor** represents a content space (independent floor, followed floor, or pod floor)\n* A **pod floor** may aggregate content across multiple related floors\n* Posts are returned **in reverse chronological order** (latest first)\n* Each post belongs to a specific **block** within the floor\n\n---\n\n## **Request Method**\n\n`GET`\n\n---\n\n## **Request Parameters (Query Params)**\n\n| Parameter Name | Type   | Required | Description                                                                                                                |\n| -------------- | ------ | -------- | -------------------------------------------------------------------------------------------------------------------------- |\n| `floor_id`     | String | **Yes**  | Floor identifier from which events should be fetched. Can be a pod floor ID, followed floor ID, or an independent floor ID |\n| `user_id`      | String | No       | If provided, returns posts relevant to the user within the given floor                                                     |\n| `app_id`       | String | No       | Identifier for external developers or pod-based applications consuming this API                                            |\n\n---\n\n## **Behavior Summary**\n\n| Scenario               | Result                                    |\n| ---------------------- | ----------------------------------------- |\n| `floor_id` only        | Latest posts from the specified floor     |\n| `floor_id` + `user_id` | User-relevant posts within that floor     |\n| Pod floor ID           | Aggregated posts across pod-linked floors |\n| Independent floor ID   | Posts only from that floor                |\n\n---\n\n## **Response Format**\n\n`application/json`\n\n---\n\n## **Response Structure**\n\n### **Top-Level Fields**\n\n| Field        | Type   | Description                    |\n| ------------ | ------ | ------------------------------ |\n| `post_count` | String | Total number of posts returned |\n| `items`      | Array  | List of recent post objects    |\n\n---\n\n### **Post Object (`items[]`)**\n\n| Field           | Type   | Description                                                               |\n| --------------- | ------ | ------------------------------------------------------------------------- |\n| `event_id`      | String | Unique identifier of the post/event                                       |\n| `block_type`    | String | Type of block where the post was created (e.g., blog, forum, audio, etc.) |\n| `block_id`      | String | Identifier of the block within the floor                                  |\n| `floor_uid`     | String | Floor identifier where the post belongs                                   |\n| `title`         | String | Title of the post (may be empty)                                          |\n| `text`          | String | Text or HTML content of the post                                          |\n| `media`         | Array  | Media objects (audio, image, etc.), if any                                |\n| `created_at_ms` | String | Post creation time in milliseconds (epoch)                                |\n\n---\n\n### **Author Object**\n\n| Field       | Type   | Description                  |\n| ----------- | ------ | ---------------------------- |\n| `name`      | String | Display name of the author   |\n| `floor_uid` | String | Author’s floor/user handle   |\n| `avatar`    | Object | Author profile image details |\n\n---\n\n### **Media Object**\n\n| Field  | Type   | Description                         |\n| ------ | ------ | ----------------------------------- |\n| `type` | String | Media type (e.g., `AUDIO`, `IMAGE`) |\n| `url`  | String | Public URL of the media file        |\n\n---\n\n## **Sample Success Response**\n\n*(structure abbreviated for clarity)*\n\n```json\n{\n  \"post_count\": \"18\",\n  \"items\": [\n    {\n      \"event_id\": \"1766557274836\",\n      \"block_type\": \"0\",\n      \"title\": \"voice-note-1766557272764.wav\",\n      \"text\": \"You\",\n      \"created_at_ms\": \"1766557275000\",\n      \"author\": {\n        \"name\": \"MEGHANA G\",\n        \"floor_uid\": \"meghanag\",\n        \"avatar\": {\n          \"type\": \"IMAGE\",\n          \"url\": \"https://...\"\n        }\n      },\n      \"media\": [\n        {\n          \"type\": \"AUDIO\",\n          \"url\": \"https://...\"\n        }\n      ]\n    }\n  ]\n}\n```\n\n---\n\n## **Notes**\n\n* Posts may contain **plain text or HTML**\n* Media is optional and may be absent\n* Ordering is **latest first**\n* The API is read-only and does not require authentication by default\n* Access control (public/private floors) is enforced internally\n\n---\n\n## **Typical Use Cases**\n\n* Floor activity feed\n* Pod-level dashboards\n* User-personalized timelines\n* Public floor landing pages\n* External developer pods using `app_id`",
+        "operationId": "getRecentEvents",
+        "tags": [
+          "getRecentEvents"
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "floor_id",
+            "in": "query",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "description": "",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "post_count": {
+                      "type": "string",
+                      "description": "Number of posts"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "event_id": {
+                            "type": "string",
+                            "description": " Post ID"
+                          },
+                          "block_type": {
+                            "type": "string",
+                            "description": "Block Type"
+                          },
+                          "author": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string",
+                                "description": "Name of the author"
+                              },
+                              "floor_id": {
+                                "type": "string",
+                                "description": "Profile floor of the auther"
+                              },
+                              "avatar": {
+                                "$ref": "#/components/schemas/Media",
+                                "description": "Profile picture"
+                              },
+                              "floor_uid": {
+                                "type": "string",
+                                "description": "Unique 13 digit id of the profile floor"
+                              }
+                            },
+                            "description": "Author details"
+                          },
+                          "media": {
+                            "type": "array",
+                            "items": {
+                              "$ref": "#/components/schemas/Media",
+                              "description": "List of Media"
+                            },
+                            "description": "Any media attached"
+                          },
+                          "floor_uid": {
+                            "type": "string",
+                            "description": "13 digit ID of the floor in which the post is residing"
+                          },
+                          "title": {
+                            "type": "string",
+                            "description": "Post title"
+                          },
+                          "text": {
+                            "type": "string",
+                            "description": "Post details"
+                          },
+                          "created_at_ms": {
+                            "type": "string",
+                            "description": "Created time in milli seconds"
+                          },
+                          "block_id": {
+                            "type": "string",
+                            "description": "Numeric ID of the block"
+                          }
+                        },
+                        "description": "Each post item"
+                      },
+                      "description": "List of posts"
+                    }
+                  },
+                  "required": [
+                    "post_count",
+                    "items"
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "Floor ID does not exist",
+                    "path": "/api/recent/events",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/memory/floor/info/{floor_id}": {
+      "get": {
+        "summary": "Basic information of a floor",
+        "deprecated": false,
+        "description": "This API returns the **basic profile information of a floor**.\nIt is used to fetch all essential metadata required to **render a floor landing page, header, or navigation context**.\n\nThe response includes:\n\n* Floor identity and type\n* Ownership information relative to the requesting user\n* Floor metadata (title, description, avatar)\n* List of blocks available in the floor\n* App association (for pod / developer use cases)\n\nThis API does **not** return posts or content; it only provides **structural and descriptive information** about the floor.\n\n---\n\n## Typical Use Cases\n\n* Render floor header (title, logo, description)\n* Decide UI permissions (owner vs non-owner)\n* Display available blocks (Feeds, Blog, Quiz, etc.)\n* Pod discovery or developer-managed floor rendering\n* Lightweight floor metadata fetch before loading content\n\n---\n\n## Authorization & Context\n\n* The API may be called by authenticated or unauthenticated users (depending on floor visibility).\n* The `is_owner` field is calculated **relative to the requesting user context** (if authenticated).\n\n---\n\n## Response Format\n\n`application/json`\n\n---\n\n## Response Structure\n\n### Top-Level Fields\n\n| Field        | Type                   | Description                                                      |\n| ------------ | ---------------------- | ---------------------------------------------------------------- |\n| `floor_id`   | String                 | Public, human-readable identifier of the floor                   |\n| `floor_uid`  | String                 | Internal unique identifier of the floor                          |\n| `title`      | String                 | Display title of the floor                                       |\n| `details`    | String                 | Short description or summary of the floor                        |\n| `floor_type` | String                 | Type of floor (`PUBLIC`, `PRIVATE`, `POD`)                       |\n| `is_owner`   | String (`\"0\"` / `\"1\"`) | Indicates whether the requesting user is the owner               |\n| `blocks`     | Array                  | List of blocks available in the floor                            |\n| `avatar`     | Object                 | Floor logo / avatar metadata                                     |\n| `app_id`     | String                 | Associated application ID (used mainly for pod/developer floors) |\n\n---\n\n## Ownership Indicator\n\n### `is_owner`\n\n```json\n\"is_owner\": \"0\"\n```\n\n| Value | Meaning                                   |\n| ----- | ----------------------------------------- |\n| `\"1\"` | Requesting user is the owner of the floor |\n| `\"0\"` | Requesting user is not the owner          |\n\nThis field is typically used by clients to:\n\n* Enable or disable edit/settings UI\n* Show owner-only actions\n\n---\n\n## Blocks Object\n\n```json\n\"blocks\": [\n  {\n    \"BID\": \"1765960948723\",\n    \"type\": \"1\",\n    \"title\": \"Feeds\"\n  }\n]\n```\n\nEach block represents a **content category or service** available inside the floor.\n\n### Block Fields\n\n| Field   | Type   | Description                                           |\n| ------- | ------ | ----------------------------------------------------- |\n| `BID`   | String | Unique identifier of the block                        |\n| `type`  | String | Block type identifier (e.g., feed, blog, forum, quiz) |\n| `title` | String | Display name of the block                             |\n\n---\n\n## Avatar Object\n\n```json\n\"avatar\": {\n  \"id\": \"1767009204367\",\n  \"url\": \"https://...\"\n}\n```\n\n| Field | Type   | Description                    |\n| ----- | ------ | ------------------------------ |\n| `id`  | String | Media identifier of the avatar |\n| `url` | String | CDN URL of the floor logo      |\n\nUsed to render the floor’s profile image or banner.\n\n---\n\n## Floor Type\n\n```json\n\"floor_type\": \"POD\"\n```\n\n| Value     | Meaning                               |\n| --------- | ------------------------------------- |\n| `PUBLIC`  | Open floor visible to everyone        |\n| `PRIVATE` | Restricted floor                      |\n| `POD`     | Aggregated or developer-managed floor |\n\n`POD` floors are often associated with an `app_id` and may aggregate or serve content programmatically.\n\n---\n\n## Sample Success Response\n\n```json\n{\n  \"is_owner\": \"0\",\n  \"blocks\": [\n    {\n      \"BID\": \"1765960948723\",\n      \"type\": \"1\",\n      \"title\": \"Feeds\"\n    }\n  ],\n  \"floor_uid\": \"1765960956967\",\n  \"floor_id\": \"raghupodfloor1\",\n  \"details\": \"raghu\",\n  \"avatar\": {\n    \"id\": \"1767009204367\",\n    \"url\": \"https://d2e5822u5ecuq8.cloudfront.net/room/1765960956967/logo/1765960956967.jpg\"\n  },\n  \"title\": \"raghu\",\n  \"floor_type\": \"POD\",\n  \"app_id\": \"1765949734005\"\n}\n```\n\n---\n\n## Notes for Developers\n\n* This is a **lightweight metadata API** and is safe to call frequently.\n* Use this API **before** loading posts or analytics.\n* `blocks` ordering can be used directly for navigation UI.\n* `floor_type` + `is_owner` together determine which UI actions are allowed.\n\n---\n\n## Common Error Scenarios\n\n### Floor Not Found\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Floor not found\"\n}\n```\n\n### Access Restricted\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Access denied for this floor\"\n}\n```\n\n---\n\n### Final Mental Model\n\n> **This API answers: “What is this floor, who owns it, and what can I do here?”**\n",
+        "operationId": "getFloorInformation",
+        "tags": [
+          "getFloorInformation"
+        ],
+        "parameters": [
+          {
+            "name": "floor_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "description": "User ID  - 13 digit numeric identity",
+            "required": false,
+            "example": "1345896753",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "description": "App ID - 13 digit numeric identity",
+            "required": false,
+            "example": "1387654378",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "floor_id": {
+                      "type": "string",
+                      "description": "Pod floor ID"
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Title"
+                    },
+                    "details": {
+                      "type": "string",
+                      "description": "Brief description about the Pod floor"
+                    },
+                    "fid": {
+                      "type": "string",
+                      "description": "Unique numeric ID of the pod floor"
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BlockDetails",
+                        "description": "Details about each Block"
+                      },
+                      "description": "List of blocks"
+                    },
+                    "avatar": {
+                      "$ref": "#/components/schemas/Media"
+                    }
+                  },
+                  "required": [
+                    "floor_id",
+                    "title",
+                    "fid"
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "Invalid data",
+                    "path": "/api/floor/info",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/memory/edit/floor/{floor_id}": {
+      "post": {
+        "summary": "Edit floor",
+        "deprecated": false,
+        "description": "This API updates an existing floor’s profile metadata using **multipart form data**.\n\nA floor **can be edited only by its owner**.\nIf the authenticated user is **not the owner of the floor**, the request will be rejected, even if the user is a member or follower of the floor.\n\nThe API allows the floor owner to update:\n\n* Floor **title**\n* Floor **details/description**\n* Floor **logo/avatar image**\n\nAfter a successful update, the API returns the **latest floor object**, including the updated avatar and the current list of blocks associated with the floor.\n\n---\n\n## Authorization Rules (Critical)\n\n* The caller **must be authenticated**\n* The caller **must be the owner of the floor**\n* Members, followers, or pod consumers **cannot** edit the floor\n* Ownership is validated internally using the authenticated user context\n\n> **Ownership is mandatory. There are no partial permissions for this API.**\n\n---\n\n## Content-Type\n\n`multipart/form-data`\n\n---\n\n## Request Body (Multipart Form Data)\n\n### Form Fields\n\n| Field Name | Type   | Required     | Description                              |\n| ---------- | ------ | ------------ | ---------------------------------------- |\n| `fid`      | String | Recommended* | Immutable internal floor ID              |\n| `floor_id` | String | Optional*    | Public / human-readable floor identifier |\n| `title`    | String | Optional     | New floor title                          |\n| `details`  | String | Optional     | New floor description                    |\n| `logo`     | File   | Optional     | New floor logo image (PNG/JPG/WebP)      |\n\n* At least **one floor identifier** (`fid` or `floor_id`) must be provided.\n**Best practice:** Use `fid` as the primary identifier.\n\n---\n\n## Update Rules\n\n* At least one of `title`, `details`, or `logo` must be present\n* Missing update fields result in a validation error\n* If `logo` is provided, the previous logo is replaced\n\n---\n\n## Response Format\n\n`application/json`\n\n---\n\n## Sample Success Response\n\n```json\n{\n  \"floor_id\": \"my_floor\",\n  \"title\": \"daughter ouch upon yummy clamor\",\n  \"details\": \"nostrud occaecat incididunt dolor adipisicing\",\n  \"fid\": \"86\",\n  \"blocks\": [\n    {\n      \"bid\": \"83\",\n      \"type\": \"pariatur\",\n      \"title\": \"wherever demobilise acidly refute\"\n    }\n  ],\n  \"avatar\": {\n    \"url\": \"https://legal-availability.name/\",\n    \"id\": \"98\"\n  }\n}\n```\n\n---\n\n## Error Responses (Authorization Focus)\n\n### Not Floor Owner\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Only the floor owner can edit this floor\"\n}\n```\n\n### Floor Not Found\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Floor not found\"\n}\n```\n\n### No Update Fields\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"No update fields provided\"\n}\n```\n\n---\n\n## Notes\n\n* This API is **owner-only by design**\n* Pods and developer tools must operate using **owner credentials**\n* Blocks are returned for convenience but are **not editable through this API**\n\n---\n\n\n",
+        "operationId": "editFloor",
+        "tags": [
+          "editFloor"
+        ],
+        "parameters": [
+          {
+            "name": "floor_id",
+            "in": "path",
+            "description": "",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "description": "User ID",
+                    "example": "",
+                    "type": "string"
+                  },
+                  "app_id": {
+                    "description": "App ID",
+                    "example": "",
+                    "type": "string"
+                  },
+                  "logo_file": {
+                    "format": "binary",
+                    "type": "string",
+                    "description": "Floor avatar",
+                    "example": ""
+                  },
+                  "title": {
+                    "description": "Floor title",
+                    "example": "",
+                    "type": "string"
+                  },
+                  "details": {
+                    "description": "Floor decription",
+                    "example": "",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "user_id",
+                  "app_id"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "floor_id": {
+                      "type": "string",
+                      "description": "Pod floor ID"
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Title"
+                    },
+                    "details": {
+                      "type": "string",
+                      "description": "Brief description about the Pod floor"
+                    },
+                    "fid": {
+                      "type": "string",
+                      "description": "Unique numeric ID of the pod floor"
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BlockDetails",
+                        "description": "Details about each Block"
+                      },
+                      "description": "List of blocks"
+                    },
+                    "avatar": {
+                      "$ref": "#/components/schemas/Media"
+                    }
+                  },
+                  "required": [
+                    "floor_id",
+                    "title",
+                    "fid"
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "API path"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "description": "Time stamp"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "Input parameters in the wrong format",
+                    "path": "/api/memory/edit/floor",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/memory/make/floor/private": {
+      "post": {
+        "summary": "Make floor Private",
+        "deprecated": false,
+        "description": "This API changes a floor’s visibility to **PRIVATE**.\n\nIt is used when a floor owner wants to **restrict access** to a floor that is currently public. After the update, the floor becomes private and is no longer accessible to non-authorized users (based on your platform’s access rules).\n\nThis endpoint is **state-changing**:\n\n* If the floor is **PUBLIC**, it will be converted to **PRIVATE**\n* If the floor is already **PRIVATE**, the API returns success (idempotent) or an “already private” response depending on implementation\n\nThis API is commonly used in:\n\n* Floor settings → “Privacy” toggle\n* Developer-managed pod workflows (app_id context)\n* Admin tools (if applicable)\n\n---\n\n## Request Method\n\n`POST`\n\n---\n\n## Content-Type\n\n`application/x-www-form-urlencoded` (or `multipart/form-data` if your system uses form-data)\n*(Document whichever you actually accept; below assumes standard form fields.)*\n\n---\n\n## Request Parameters (Form Fields)\n\n| Field      | Type   | Required | Description                                                          |\n| ---------- | ------ | -------- | -------------------------------------------------------------------- |\n| `user_id`  | String | **Yes**  | User requesting the change. Must be the **owner** of the floor.      |\n| `floor_id` | String | **Yes**  | Public identifier of the floor to update.                            |\n| `app_id`   | String | No       | Calling application identifier (used for developer/pod integration). |\n\n---\n\n## Authorization Rules (Critical)\n\n* The caller must be authenticated as `user_id`\n* **Only the floor owner** can change floor visibility\n* If the user is not the owner, the request must be rejected\n\n---\n\n## Behavior Rules\n\n* Converts visibility from **PUBLIC → PRIVATE**\n* Does not modify floor content or blocks\n* Access enforcement for private floors is applied immediately after the change\n\n**Idempotency**\n\n* Calling this API multiple times should not cause repeated changes\n* If already private, the API should either:\n\n  * return success with a message like `\"already private\"`, or\n  * return a specific error/status indicating no-op\n\n---\n\n## Response Format\n\n`application/json`\n\n---\n\n## Sample Success Response\n\n*(Example — adjust to match your actual response format)*\n\n```json\n{\n  \"status\": \"SUCCESS\",\n  \"floor_id\": \"my_floor\",\n  \"visibility\": \"PRIVATE\",\n  \"message\": \"Floor is now private\"\n}\n```\n\n---\n\n## Sample No-Op Response (Already Private)\n\n```json\n{\n  \"status\": \"SUCCESS\",\n  \"floor_id\": \"my_floor\",\n  \"visibility\": \"PRIVATE\",\n  \"message\": \"Floor is already private\"\n}\n```\n\n---\n\n## Error Responses (Examples)\n\n### Not Authorized (Not Owner)\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Only the floor owner can change floor visibility\"\n}\n```\n\n### Floor Not Found\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Floor not found\"\n}\n```\n\n### Invalid Request\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"user_id and floor_id are required\"\n}\n```\n\n---\n\n## Notes\n\n* This API is intended to control floor visibility only; membership/invite rules (for private floors) are handled elsewhere.\n* `app_id` is provided for developer/pod applications and is optional unless enforced by your app model.\n* If you support floor types like `POD`, document whether pods are allowed to be private or not (some platforms restrict this).\n",
+        "operationId": "makeFloorPrivate",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "floor_id",
+            "in": "query",
+            "description": "Floor ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "description": "User ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "description": "App ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "floor_id": {
+                      "type": "string",
+                      "description": "Pod floor ID"
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Title"
+                    },
+                    "details": {
+                      "type": "string",
+                      "description": "Brief description about the Pod floor"
+                    },
+                    "fid": {
+                      "type": "string",
+                      "description": "Unique numeric ID of the pod floor"
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BlockDetails",
+                        "description": "Details about each Block"
+                      },
+                      "description": "List of blocks"
+                    },
+                    "avatar": {
+                      "$ref": "#/components/schemas/Media"
+                    }
+                  },
+                  "required": [
+                    "floor_id",
+                    "title",
+                    "fid"
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "API path"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "description": "Time stamp"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "Invalid floor ID",
+                    "path": "/api/memory/make/floor/private",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/memory/make/floor/public": {
+      "post": {
+        "summary": "Make floor public",
+        "deprecated": false,
+        "description": "This API changes a floor’s visibility to **PUBLIC**.\n\nIt is used when a floor owner wants to **make a private floor accessible to everyone**. After the update, the floor becomes public and can be viewed and discovered by any user, subject to platform rules (search, feeds, pods, etc.).\n\nThis endpoint performs a **visibility state transition**:\n\n* **PRIVATE → PUBLIC**\n* If the floor is already public, the operation is treated as **idempotent** (no state change).\n\nThis API is typically used from:\n\n* Floor settings → Privacy / Visibility controls\n* Owner or admin tools\n* Developer or pod-based applications using `app_id`\n\n---\n\n## Request Method\n\n`POST`\n\n---\n\n## Content-Type\n\n`application/x-www-form-urlencoded`\n(or `multipart/form-data`, depending on your implementation)\n\n---\n\n## Request Parameters (Form Fields)\n\n| Field      | Type   | Required | Description                                                                     |\n| ---------- | ------ | -------- | ------------------------------------------------------------------------------- |\n| `user_id`  | String | **Yes**  | User requesting the change. Must be the **owner** of the floor.                 |\n| `floor_id` | String | **Yes**  | Public identifier of the floor whose visibility is to be changed.               |\n| `app_id`   | String | No       | Identifier of the calling application (used mainly for pod/developer contexts). |\n\n---\n\n## Authorization Rules (Critical)\n\n* The caller must be authenticated as `user_id`\n* **Only the floor owner** is allowed to change the floor’s visibility\n* Requests from non-owners must be rejected\n\n---\n\n## Behavior Rules\n\n* Converts floor visibility from **PRIVATE → PUBLIC**\n* Does not modify floor content, blocks, or ownership\n* Visibility change takes effect immediately\n\n### Idempotency\n\n* If the floor is already public, the API should:\n\n  * Return success with a message indicating no change, or\n  * Return a specific “already public” status (implementation-dependent)\n\n---\n\n## Response Format\n\n`application/json`\n\n---\n\n## Sample Success Response\n\n```json\n{\n  \"status\": \"SUCCESS\",\n  \"floor_id\": \"my_floor\",\n  \"visibility\": \"PUBLIC\",\n  \"message\": \"Floor is now public\"\n}\n```\n\n---\n\n## Sample No-Op Response (Already Public)\n\n```json\n{\n  \"status\": \"SUCCESS\",\n  \"floor_id\": \"my_floor\",\n  \"visibility\": \"PUBLIC\",\n  \"message\": \"Floor is already public\"\n}\n```\n\n---\n\n## Error Responses (Examples)\n\n### Not Authorized (Not Owner)\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Only the floor owner can change floor visibility\"\n}\n```\n\n---\n\n### Floor Not Found\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Floor not found\"\n}\n```\n\n---\n\n### Invalid Request\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"user_id and floor_id are required\"\n}\n```\n\n---\n\n## Notes for Developers\n\n* This API controls **visibility only**. Membership, invitations, and moderation rules are handled by separate APIs.\n* `app_id` is optional and primarily used for developer-managed or pod floors.\n* Clients should refresh floor metadata (e.g., via `/api/floor/info`) after a successful visibility change.\n\n---\n\n### Mental Model (One Line)\n\n> **This API answers: “Make this floor visible to everyone.”**\n",
+        "operationId": "makeFloorPublic",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "floor_id",
+            "in": "query",
+            "description": "Floor ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "user_id",
+            "in": "query",
+            "description": "User ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "description": "App ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "floor_id": {
+                      "type": "string",
+                      "description": "Pod floor ID"
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Title"
+                    },
+                    "details": {
+                      "type": "string",
+                      "description": "Brief description about the Pod floor"
+                    },
+                    "fid": {
+                      "type": "string",
+                      "description": "Unique numeric ID of the pod floor"
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BlockDetails",
+                        "description": "Details about each Block"
+                      },
+                      "description": "List of blocks"
+                    },
+                    "avatar": {
+                      "$ref": "#/components/schemas/Media"
+                    }
+                  },
+                  "required": [
+                    "floor_id",
+                    "title",
+                    "fid"
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "Error code"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "Error message"
+                        },
+                        "path": {
+                          "type": "string",
+                          "description": "API path"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "description": "Time stamp"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "Invalid floor ID",
+                    "path": "/api/memory/make/floor/public",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/api/memory/change/floor/id": {
+      "post": {
+        "summary": "Rename floor",
+        "deprecated": false,
+        "description": "This API renames a floor by changing knowing the **floor identifier (floor_id)**.\n\nIt allows the **floor owner** to update the public-facing floor ID (slug/handle) from an old value to a new value. This is typically used when the owner wants to rebrand, reorganize, or correct the floor’s identifier.\n\n⚠️ **This operation affects how the floor is accessed and referenced externally**, so it must be performed carefully.\n\n---\n\n## Ownership & Authorization (Critical)\n\n* The caller **must be authenticated**\n* **Only the floor owner** is allowed to rename a floor\n* Members, followers, or non-owners **cannot** perform this operation\n* Ownership is validated internally using `user_id`\n\n> If the user is not the owner, the request must be rejected.\n\n---\n\n## Request Method\n\n`POST`\n\n---\n\n## Content-Type\n\n`application/x-www-form-urlencoded`\n(or equivalent form-data encoding)\n\n---\n\n## Request Parameters (Form Fields)\n\n| Parameter | Type   | Required | Description                                                                     |\n| --------- | ------ | -------- | ------------------------------------------------------------------------------- |\n| `user_id` | String | **Yes**  | User requesting the rename. Must be the **owner** of the floor.                 |\n| `from`    | String | **Yes**  | Existing floor ID (current identifier to be renamed).                           |\n| `to`      | String | **Yes**  | New floor ID to assign to the floor.                                            |\n| `app_id`  | String | No       | Identifier of the calling application (used mainly for pod/developer contexts). |\n\n---\n\n## Rename Rules & Constraints\n\n* The `from` floor ID **must exist**\n* The `to` floor ID **must be unique** and not already in use\n* The rename operation updates **only the floor ID**\n\n  * Floor ownership, blocks, posts, and internal `fid` remain unchanged\n* Any links or references using the old floor ID may no longer be valid after rename\n\n---\n\n## Behavior Summary\n\n| Scenario                     | Result                                            |\n| ---------------------------- | ------------------------------------------------- |\n| Valid owner + unique new ID  | Floor ID renamed successfully                     |\n| Non-owner user               | Request rejected                                  |\n| `from` floor ID not found    | Error                                             |\n| `to` floor ID already exists | Error                                             |\n| `from` == `to`               | No-op or validation error (implementation choice) |\n\n---\n\n## Response Format\n\n`application/json`\n\n---\n\n## Sample Success Response\n\n```json\n{\n  \"status\": \"SUCCESS\",\n  \"old_floor_id\": \"oldfloorid\",\n  \"new_floor_id\": \"newfloorid\",\n  \"message\": \"Floor ID renamed successfully\"\n}\n```\n\n---\n\n## Sample Error Responses\n\n### Not Floor Owner\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Only the floor owner can rename the floor\"\n}\n```\n\n---\n\n### Floor Not Found\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Source floor ID does not exist\"\n}\n```\n\n---\n\n### Floor ID Already Exists\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"Target floor ID is already in use\"\n}\n```\n\n---\n\n### Invalid Request\n\n```json\n{\n  \"status\": \"ERROR\",\n  \"message\": \"user_id, from, and to are required\"\n}\n```\n\n---\n\n## Notes for Developers\n\n* This API **renames the public identifier only**; the internal immutable floor ID (`fid`) is not affected.\n* Clients should refresh cached floor metadata after a successful rename.\n* If your platform supports deep links or bookmarks, consider redirect or alias handling for old floor IDs (if supported).\n\n---\n\n### One-Line Mental Model\n\n> **This API answers: “Change the public identity (ID) of a floor, owner-only.”**\n",
+        "operationId": "renameFloor",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "query",
+            "description": "User ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "description": "App ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Old floor ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "New floor ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "floor_id": {
+                      "type": "string",
+                      "description": "Pod floor ID"
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "Title"
+                    },
+                    "details": {
+                      "type": "string",
+                      "description": "Brief description about the Pod floor"
+                    },
+                    "fid": {
+                      "type": "string",
+                      "description": "Unique numeric ID of the pod floor"
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BlockDetails",
+                        "description": "Details about each Block"
+                      },
+                      "description": "List of blocks"
+                    },
+                    "avatar": {
+                      "$ref": "#/components/schemas/Media"
+                    }
+                  },
+                  "required": [
+                    "floor_id",
+                    "title",
+                    "fid"
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth-service/sign/up": {
+      "post": {
+        "summary": "Sign Up",
+        "deprecated": false,
+        "description": "Creates a new user account in the Floor POD using **either a mobile number or an email ID**.\nAt least **one of `mobile_number` or `email_id` is required** to register a user. Both may be provided if available.\n\nThe API registers the user under the specified application context and prepares the account for subsequent authentication and usage.\n\nUpon successful registration, the API returns:\n- a unique user_id identifying the newly created user, and\n- a success string indicating the outcome of the sign-up operation.\nThe user account is created under the specified application context and can be used for subsequent interactions with Floor POD APIs.\n\n---\n\n### **Parameter Clarification (Recommended)**\n\n* `name` is mandatory for user profile creation\n* Either `mobile_number` **or** `email_id` must be present\n* `app_id` is optional and used to associate the user with a specific application\n\n\n",
+        "operationId": "signUp",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "description": "New User Name",
+                    "example": "\"Jon Doe\"",
+                    "type": "string"
+                  },
+                  "email_id": {
+                    "description": "Email ID of the user",
+                    "example": "\"myemail@email.com\"",
+                    "type": "string"
+                  },
+                  "mobile_number": {
+                    "description": "Mobile number",
+                    "example": "\"9084568934\"",
+                    "type": "string"
+                  },
+                  "password": {
+                    "description": "Password",
+                    "example": "\"xxxxxxxx\"",
+                    "type": "string"
+                  },
+                  "app_id": {
+                    "description": "Registered App ID",
+                    "example": "\"1675645678\"",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "password"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "user_id": {
+                      "type": "string",
+                      "description": "User ID"
+                    },
+                    "success": {
+                      "type": "string",
+                      "description": "Success string - \"Enter Validation code\""
+                    }
+                  },
+                  "required": [
+                    "user_id",
+                    "success"
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": "\"error\": {\n    \"code\": \"XF_VALIDATION_ERROR\",\n    \"message\": \"Invalid mobile number\",\n    \"path\": \"/auth-service/sign/up\",\n    \"timestamp\": \"2026-01-12T08:11:59.993079561Z\"\n}"
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth-service/sign/in/with/email": {
+      "post": {
+        "summary": "Sign In with email ID",
+        "deprecated": false,
+        "description": "Authenticates a user using a registered email ID.\nThe authentication mechanism is determined by the specified `mode`.\n\n* When `login_type` is set to **`1`**, the user is authenticated using the provided **password**.\n* When `login_type` is set to **`2`**, the user is authenticated using a **one-time activation code (OTP)**.\n\nFor OTP-based authentication (`login_type = 2`), the client **must first invoke the Send Validation Code API** with the appropriate login mode to generate and deliver the activation code to the user.\n\n---\n### **Request Body**\n\n| Field        | Type          | Required | Description                                                       |\n| ------------ | ------------- | -------- | ----------------------------------------------------------------- |\n| `email_id` | string | Yes      | Email ID |\n| `pass_code` | string | Yes      | Password/Validation code depending on the login_type|\n| `login_type` | string | Yes      | login type 1 for password 2 for validation code| \n |`app_id` | string | Yes      | App ID | \n\n\n\n**Field Description**\n\n* `email_id` – Registered email address of the user\n* `pass_code` – password or activation code  (this is password if it is 1 and 2 it is validation code)\n* `app_id` - App ID which is a 13 digit numeric value\n* `login_type` – Login type\n  * `1` → Password-based login\n  * `2` → Activation code (OTP)–based login\n\n---\n\n### **Behavior Notes**\n\n* When `login_type = 2`, password validation is bypassed.\n* OTP-based login requires a prior call to `\n/auth-service/send/sign/in/validation/code`.\n* If the required credentials for the selected mode are missing or invalid, authentication fails.\n\n---\n\n### **Successful Response**\n\nOn successful authentication, the user is signed in and a success response is returned as per the authentication flow.\n\n---\n\n### **Error Response**\n\nThe API returns an error response if:\n\n* The email ID is not registered\n* The password is incorrect (`login_type = 1 `)\n* The activation code is missing, invalid, or expired (`login_type = 2`)\n* The mode value is invalid or unsupported\n\n---\n\n### **One-Line Summary**\n\n> Signs in a user using an email ID with either password-based or OTP-based authentication, based on the selected mode.\n\n",
+        "operationId": "signInWithEmail",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "email_id": {
+                    "description": "Email ID",
+                    "example": "",
+                    "type": "string"
+                  },
+                  "pass_code": {
+                    "description": "Validation code or password depends on the login_type",
+                    "example": "",
+                    "type": "string"
+                  },
+                  "login_type": {
+                    "description": "1 is for password, 2 is for validation code",
+                    "example": "",
+                    "type": "string"
+                  },
+                  "app_id": {
+                    "description": "App ID",
+                    "example": "",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "email_id",
+                  "pass_code",
+                  "login_type"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": {
+                      "type": "object",
+                      "properties": {
+                        "floor_id": {
+                          "type": "string",
+                          "description": "Associated floor ID"
+                        },
+                        "fid": {
+                          "type": "string",
+                          "description": "Unique ID of floor"
+                        },
+                        "blocks": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/BlockDetails"
+                          },
+                          "description": "List of Blocks"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "User Name"
+                        },
+                        "email": {
+                          "type": "string",
+                          "description": "Email ID"
+                        },
+                        "mobile_number": {
+                          "type": "string",
+                          "description": "Mobile number"
+                        },
+                        "user_id": {
+                          "type": "string",
+                          "description": "Unique User ID"
+                        },
+                        "avatar": {
+                          "type": "object",
+                          "properties": {
+                            "url": {
+                              "type": "string",
+                              "description": "Image URL"
+                            },
+                            "id": {
+                              "type": "string",
+                              "description": "Image ID"
+                            }
+                          },
+                          "required": [
+                            "url",
+                            "id"
+                          ],
+                          "description": "Profile Pick details"
+                        }
+                      },
+                      "required": [
+                        "floor_id",
+                        "fid",
+                        "user_id"
+                      ],
+                      "description": "User profile details"
+                    },
+                    "pod_info": {
+                      "type": "object",
+                      "properties": {
+                        "floor_id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "string"
+                        },
+                        "fid": {
+                          "type": "string"
+                        },
+                        "blocks": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/BlockDetails"
+                          }
+                        },
+                        "avatar": {
+                          "$ref": "#/components/schemas/Media"
+                        }
+                      },
+                      "required": [
+                        "floor_id",
+                        "title",
+                        "fid",
+                        "blocks"
+                      ]
+                    },
+                    "app_id": {
+                      "type": "string",
+                      "description": "App ID"
+                    }
+                  },
+                  "required": [
+                    "profile",
+                    "pod_info"
+                  ]
+                },
+                "example": "\"error\": {\n    \"code\": \"XF_VALIDATION_ERROR\",\n    \"message\": \"Invalid E-Mail\",\n    \"path\": \"/auth-service/sign/in/with/email\",\n    \"timestamp\": \"2026-01-12T08:11:59.993079561Z\"\n}\n}"
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": "\"error\": {\n    \"code\": \"XF_VALIDATION_ERROR\",\n    \"message\": \"Invalid Data\",\n    \"path\": \"/auth-service/sign/in/with/email\",\n    \"timestamp\": \"2026-01-12T08:11:59.993079561Z\"\n}"
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth-service/sign/in/with/mobile/number": {
+      "post": {
+        "summary": "Sign In with Mobile number",
+        "deprecated": false,
+        "description": "Authenticates a user using a registered mobile number.\nThe authentication method is determined by the specified `mode`.\n\n* When `login_type` is set to **`1`**, the user is authenticated using the **password** associated with the account.\n* When `login_type` is set to **`2`**, the user is authenticated using a **one-time activation code (OTP)** sent to the registered mobile number.\n\nFor OTP-based authentication (`login_type = 1`), the client **must first call the Send Validation Code API** with the appropriate login mode to generate and deliver the activation code.\n\n---\n\n### **Request Formdata**\n\n| Field        | Type          | Required | Description                                                       |\n| ------------ | ------------- | -------- | ----------------------------------------------------------------- |\n| `mobile_number` | string | Yes      | Mobile number|\n| `pass_code` | string | Yes      | Password/Validation code depending on the login_type|\n| `login_type` | string | Yes      | login type 1 for password 2 for validation code| \n |`app_id` | string | Yes      | App ID | \n\n\n**Field Description**\n\n* `mobile_number` – Registered mobile number of the user\n* `pass_code` – Password / Validation code (password when `login_type= 1`; validation code when `login_type = 2`)\n* `login_type` – Login type\n\n  * `1` → Password-based login\n  * `2` → Activation code (OTP)–based login\n\n---\n\n### **Behavior Notes**\n\n* When `login_type = 2`, password validation is skipped.\n* OTP-based login requires a prior call to `/auth-service/send/sign/in/validation/code`.\n* Missing or invalid credentials for the selected mode will result in authentication failure.\n\n---\n\n### **Successful Response**\n\nOn successful authentication, the user is signed in and a success response is returned according to the authentication flow.\n\n---\n\n### **Error Response**\n\nThe API returns an error response if:\n\n* The mobile number is not registered\n* The password is incorrect (`login_type = 1`)\n* The activation code is missing, invalid, or expired (`login_type = 2`)\n* An invalid or unsupported mode is provided\n\n---\n\n### **One-Line Summary**\n\n> Signs in a user using a mobile number with either password-based or OTP-based authentication, based on the selected mode.",
+        "operationId": "signInWithMobileNumber",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": {
+                      "type": "object",
+                      "properties": {
+                        "floor_id": {
+                          "type": "string",
+                          "description": "Associated floor ID"
+                        },
+                        "fid": {
+                          "type": "string",
+                          "description": "Unique ID of floor"
+                        },
+                        "blocks": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/BlockDetails"
+                          },
+                          "description": "List of Blocks"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "User Name"
+                        },
+                        "email": {
+                          "type": "string",
+                          "description": "Email ID"
+                        },
+                        "mobile_number": {
+                          "type": "string",
+                          "description": "Mobile number"
+                        },
+                        "user_id": {
+                          "type": "string",
+                          "description": "Unique User ID"
+                        },
+                        "avatar": {
+                          "type": "object",
+                          "properties": {
+                            "url": {
+                              "type": "string",
+                              "description": "Image URL"
+                            },
+                            "id": {
+                              "type": "string",
+                              "description": "Image ID"
+                            }
+                          },
+                          "required": [
+                            "url",
+                            "id"
+                          ],
+                          "description": "Profile Pick details"
+                        }
+                      },
+                      "required": [
+                        "floor_id",
+                        "fid",
+                        "user_id"
+                      ],
+                      "description": "User profile details"
+                    },
+                    "pod_info": {
+                      "type": "object",
+                      "properties": {
+                        "floor_id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "string"
+                        },
+                        "fid": {
+                          "type": "string"
+                        },
+                        "blocks": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/BlockDetails"
+                          }
+                        },
+                        "avatar": {
+                          "$ref": "#/components/schemas/Media"
+                        }
+                      },
+                      "required": [
+                        "floor_id",
+                        "title",
+                        "fid",
+                        "blocks"
+                      ]
+                    },
+                    "app_id": {
+                      "type": "string",
+                      "description": "App ID"
+                    }
+                  },
+                  "required": [
+                    "profile",
+                    "pod_info"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "Invalid mobile number",
+                    "path": "/auth-service/sign/in/with/mobile/number",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": "\"error\": {\n    \"code\": \"XF_VALIDATION_ERROR\",\n    \"message\": \"Invalid Data\",\n    \"path\": \"/auth-service/sign/in/with/mobile/number\",\n    \"timestamp\": \"2026-01-12T08:11:59.993079561Z\"\n}"
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth-service/validate/activation/code": {
+      "post": {
+        "summary": "Validation",
+        "deprecated": false,
+        "description": "## **Validate Activation / Verification Code**\n\nThis API **validates a one-time verification code** submitted by a user and **executes the corresponding account operation** based on the specified **mode**.\n\nDepending on the mode, the API may:\n\n* Activate a newly registered account\n* Confirm a login attempt\n* Verify a password change or reset\n* Validate email or mobile updates\n* Confirm account deletion or clearing requests\n\nThe API verifies the provided `activation_code` against the given `user_id`, `mode`, and application context.\nIf validation succeeds, the requested operation is completed and the API returns the relevant **POD information** and **user profile details** (where applicable).\n\nIf validation fails, the operation is **not performed** and an appropriate error response is returned.\n\n---\n\n## **Authentication**\n\nThis endpoint requires **Bearer Token authentication**.\n\n**Header**\n\n```\nAuthorization: Bearer <access_token>\n```\n\n---\n\n## **Request Body**\n\n```json\n{\n  \"user_id\": \"string\",\n  \"activation_code\": \"string\",\n  \"app_id\": \"string\",\n  \"mode\": \"string\"\n}\n```\n\n### **Field Descriptions**\n\n* **user_id** – Unique identifier of the user initiating the operation\n* **activation_code** – One-time verification code sent to the user\n* **app_id** – Application identifier (optional or context-specific)\n* **mode** – Operation context for which the verification is being performed\n\n---\n\n## **Usage Scenarios (Mode Definitions)**\n\n| Mode | Purpose                                  |\n| ---- | ---------------------------------------- |\n| 0    | Email or mobile number change            |\n| 1    | Password change                          |\n| 2    | Delete account                           |\n| 3    | Clear account                            |\n| 4    | Signup verification (account activation) |\n| 5    | Login verification                       |\n| 6    | Forgot password verification             |\n\n---\n\n## **Successful Response**\n\nOn successful validation:\n\n* The requested operation (based on `mode`) is completed\n* The API returns:\n\n  * **POD information** associated with the user (if applicable)\n  * **User profile details** (if applicable)\n\nExamples:\n\n* For **signup verification**, the user account is activated\n* For **login**, access is confirmed\n* For **password reset**, the user may proceed to set a new password\n* For **account deletion**, the request is confirmed\n\n---\n\n## **Error Response**\n\nThe API returns an error response when:\n\n* The activation code is invalid or expired\n* The activation code does not match the user or operation mode\n* The requested operation is already completed (e.g., user already activated)\n* Authorization fails or the bearer token is missing or invalid\n\n⚠️ In all error cases, **no account state change occurs**.\n\n---\n\n## **One-Line Summary**\n\n> Validates a one-time verification code and securely completes the requested user account operation (signup, login, password change, or account actions), returning POD and profile details on success.",
+        "operationId": "validateCode",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "string",
+                    "description": "User ID"
+                  },
+                  "activation_code": {
+                    "type": "string",
+                    "description": "Validation code"
+                  },
+                  "app_id": {
+                    "type": "string",
+                    "description": "App ID which is given while registering as developer"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "description": "4 for sign up, 5 for login"
+                  }
+                },
+                "required": [
+                  "user_id",
+                  "activation_code",
+                  "app_id",
+                  "mode"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDetails"
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "description": "error code"
+                        },
+                        "message": {
+                          "type": "string",
+                          "description": "The signup failed or wrong user_id"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": "\"error\": {\n    \"code\": \"XF_VALIDATION_ERROR\",\n    \"message\": \"The signup failed or wrong user_id\",\n    \"path\": \"/auth-service/validate/activation/code\",\n    \"timestamp\": \"2026-01-12T08:11:59.993079561Z\"\n}"
+              }
+            },
+            "headers": {}
+          },
+          "412": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Something went wrong. Try again"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth-service/password/change": {
+      "post": {
+        "summary": "Change Password",
+        "deprecated": false,
+        "description": "## 1) `POST /password/change` — Change Password (Logged-in User)\n\nChanges the password of an **authenticated user** who is currently logged in.\n\nThis endpoint is used when a user is already signed in and wants to update their password as a security or preference action. The system validates a **one-time password-change verification code** (`activation_code`) issued specifically for the change-password flow. If the code is valid and not expired, the user’s password is updated to `new_password` and takes effect immediately.\n\nIf verification fails, the password remains unchanged and an error response is returned.\n\n### Authentication\n\n✅ **Required**: Bearer token for the logged-in session\n\n```\nAuthorization: Bearer <access_token>\n```\n\n### Request Body (Form Data)\n\n* `user_id` (optional if derived from token)\n* `activation_code` (required)\n* `new_password` (required)\n\n### Behavior Notes\n\n* Typically requires a prior call to **send a verification code** for password change (mode = password change).\n* `user_id` can be taken from the access token; include it only if your system requires it explicitly.\n\n### One-Line Summary\n\n> Changes the password for a logged-in user after validating a one-time password-change code.\n",
+        "operationId": "changePassword",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "description": "User ID",
+                    "example": "\"187626754904\"",
+                    "type": "string"
+                  },
+                  "new_password": {
+                    "description": "New Password",
+                    "example": "\"mypassword\"",
+                    "type": "string"
+                  },
+                  "activation_code": {
+                    "description": "Validation code",
+                    "example": "\"2347\"",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "new_password",
+                  "activation_code"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "string",
+                      "description": "Validate with OTP"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "The signup failed or wrong user_id",
+                    "path": "/auth-service/validate/activation/code",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": "\"error\": {\n    \"code\": \"XF_VALIDATION_ERROR\",\n    \"message\": \"Invalid Data\",\n    \"path\": \"/auth-service/change/password\",\n    \"timestamp\": \"2026-01-12T08:11:59.993079561Z\"\n}"
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth-service/password/reset": {
+      "post": {
+        "summary": "Reset Password",
+        "deprecated": false,
+        "description": "---\n\n## Reset Password (Forgot Password, Not Logged In)\n\nResets the password of a user who **cannot log in** and is using a **forgot-password** flow.\n\nThis endpoint is used when the user is not authenticated and requests a password reset using a verified identity channel such as **email** or **mobile number**. The system validates a **one-time reset verification code** (`activation_code`) issued for the reset-password flow. If valid and not expired, the password is updated to `new_password` and takes effect immediately.\n\nIf verification fails, the password remains unchanged and an error response is returned.\n\n### Authentication\n\n✅ **Recommended** (better security): a short-lived **reset token** issued after initiating reset\n\n```\nAuthorization: Bearer <reset_token>\n```\n\n> If you don’t use a reset token, you must enforce strong rate limiting + OTP attempt throttling on this endpoint.\n\n### Request Body (Form Data)\n\n* `email_id` or `mobile_number` (required to identify user)\n* `activation_code` (required)\n* `new_password` (required)\n* `user_id` (optional, if your reset flow already resolved it)\n\n### Behavior Notes\n\n* Requires a prior call to **initiate reset** and send OTP/code (mode = forgot password).\n* Must enforce code attempt limits and expiration strictly.\n\n### One-Line Summary\n\n> Resets a user’s password (forgot-password flow) after validating a one-time reset code sent to email or mobile.\n\n\n",
+        "operationId": "resetPassword",
+        "tags": [],
+        "parameters": [
+          {
+            "name": "email_id",
+            "in": "query",
+            "description": "Email ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mobile_number",
+            "in": "query",
+            "description": "Mobile number",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "activation_code",
+            "in": "query",
+            "description": "Activation Code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app_id",
+            "in": "query",
+            "description": "App ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "string",
+                      "description": "Password Reset"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string",
+                      "description": "Validation Error"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Error Message"
+                    },
+                    "path": {
+                      "type": "string",
+                      "description": "REST api path"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "description": "Time stamp"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message",
+                    "path",
+                    "timestamp"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "The signup failed or wrong user_id",
+                    "path": "/auth-service/validate/activation/code",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/auth-service/change/email": {
+      "post": {
+        "summary": "Change email ID",
+        "deprecated": false,
+        "description": "Updates the email ID associated with an existing user account after validating a one-time activation code sent to the **new email address**.\n\nThis operation can only be performed by a **logged-in user**. When a user initiates an email change, an activation code is sent to the newly provided email ID. The email update takes effect only after the activation code is successfully validated.\n\nIf the activation code validation fails, the email ID remains unchanged.\n\n---\n\n### **Authentication**\n\nThis endpoint requires **Bearer Token authentication**.\n\n```\nAuthorization: Bearer <access_token>\n```\n\n---\n\n### **Request Body**\n\n```json\n{\n  \"user_id\": \"string\",\n  \"new_email_id\": \"string\",\n  \"activation_code\": \"string\",\n  \"app_id\":\"string\"\n}\n```\n\n**Field Description**\n\n* `user_id` – Unique identifier of the logged-in user\n* `new_email_id` – New email address to be associated with the account\n* `activation_code` – One-time activation code sent to the new email ID for verification\n\n---\n\n### **Flow Summary**\n\n1. User is authenticated and logged in\n2. User requests to change email ID\n3. System sends an activation code to the **new email address**\n4. User submits the activation code via this API\n5. On successful validation, the email ID is updated\n\n---\n\n### **Successful Response**\n\nOn successful validation:\n\n* The activation code is verified\n* The user’s email ID is updated immediately\n* A `success` string is returned confirming the email change\n\n---\n\n### **Error Response**\n\nThe API returns an error response if:\n\n* The activation code is invalid or expired\n* The activation code does not match the user or email\n* The new email ID is already in use\n* Authorization fails or the bearer token is missing or invalid\n\nIn all error cases, the existing email ID remains unchanged.\n\n---\n### **Behavior Notes**\n\n* Requires a prior call to `/auth-service/send/validation/code` with the proper mode.\n\n---\n\n### **Security Notes (Recommended)**\n\n* Activation codes are single-use and time-bound\n* Email changes require prior authentication\n* Rate limiting may be applied to prevent abuse\n\n---\n\n### **One-Line Summary**\n\n> Changes a user’s email ID after validating an activation code sent to the new email address.\n",
+        "operationId": "changeEmail",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "new_email_id": {
+                    "description": "New Email ID",
+                    "example": "",
+                    "type": "string"
+                  },
+                  "activation_code": {
+                    "description": "Validation code",
+                    "example": "",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "new_email_id",
+                  "activation_code"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                }
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": "\"error\": {\n    \"code\": \"XF_VALIDATION_ERROR\",\n    \"message\": \"The user details does not exist\",\n    \"path\": \"/auth-service/change/email\",\n    \"timestamp\": \"2026-01-12T08:11:59.993079561Z\"\n}"
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth-service/change/mobile": {
+      "post": {
+        "summary": "Change Mobile number",
+        "deprecated": false,
+        "description": "Updates the mobile number associated with an existing user account after validating a one-time activation code sent to the **new mobile number**.\n\nThis operation can only be performed by a **logged-in user**. When a user initiates a mobile number change, an activation code is sent to the newly provided mobile number. The mobile number update takes effect only after the activation code is successfully validated.\n\nIf the activation code validation fails, the mobile number remains unchanged.\n\n---\n\n### **Authentication**\n\nThis endpoint requires **Bearer Token authentication**.\n\n```\nAuthorization: Bearer <access_token>\n```\n\n---\n\n### **Request Body**\n\n```json\n{\n  \"user_id\": \"string\",\n  \"new_mobile_number\": \"string\",\n  \"activation_code\": \"string\"\n}\n```\n\n**Field Description**\n\n* `user_id` – Unique identifier of the logged-in user\n* `new_mobile_number` – New mobile number to be associated with the account\n* `activation_code` – One-time activation code sent to the new mobile number for verification\n\n---\n\n### **Flow Summary**\n\n1. User is authenticated and logged in\n2. User requests to change mobile number\n3. System sends an activation code to the **new mobile number**\n4. User submits the activation code via this API\n5. On successful validation, the mobile number is updated\n\n---\n\n### **Successful Response**\n\nOn successful validation:\n\n* The activation code is verified\n* The user’s mobile number is updated immediately\n* A `success` string is returned confirming the mobile number change\n\n---\n\n### **Error Response**\n\nThe API returns an error response if:\n\n* The activation code is invalid or expired\n* The activation code does not match the user or mobile number\n* The new mobile number is already in use\n* Authorization fails or the bearer token is missing or invalid\n\nIn all error cases, the existing mobile number remains unchanged.\n\n---\n### **Behavior Notes**\n\n* Requires a prior call to `/auth-service/send/validation/code` with the proper mode.\n---\n\n### **Security Notes (Recommended)**\n\n* Activation codes are single-use and time-bound\n* Mobile number changes require prior authentication\n* Rate limiting may be applied to prevent abuse\n\n---\n\n### **One-Line Summary**\n\n> Changes a user’s mobile number after validating an activation code sent to the new mobile number.",
+        "operationId": "changeMobileNumber",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {}
+                },
+                "example": "\"error\": {\n    \"code\": \"XF_VALIDATION_ERROR\",\n    \"message\": \"The user details does not exist\",\n    \"path\": \"/auth-service/change/mobile\",\n    \"timestamp\": \"2026-01-12T08:11:59.993079561Z\"\n}"
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "The user details does not exist",
+                    "path": "/auth-service/change/mobile",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/auth-service/send/validation/code": {
+      "post": {
+        "summary": "Send Validation code",
+        "deprecated": false,
+        "description": "Generates and sends a one-time validation code to the user for verification of sensitive or critical account operations.\n\nThis API is used across multiple authentication and account-management flows. The validation code is delivered to the user via the appropriate channel (**email or mobile number**), based on the requested operation mode and the input provided.\n\nThe generated code is **time-bound**, **single-use**, and must be validated using the corresponding verification APIs to complete the requested action.\n\n---\n\n### **Usage Scenarios (Mode Definition)**\n\n| Mode | Purpose                       |\n| ---- | ----------------------------- |\n| `0`  | Email or mobile number change |\n| `1`  | Password change               |\n| `2`  | Delete account                |\n| `3`  | Clear account                 |\n| `4`  | Signup Verification           |\n| `5`  | Using OTP for Login           |\n| `6`  | OTP for forgot password       |\n\n**Mode `4` – Signup Verification**\nFor login verification, the validation code is sent to **either the email ID or the mobile number provided in the request**.\nAt least **one of email or mobile number must be supplied** for this mode.\n\n---\n\n### **Behavior**\n\n* Generates a secure, one-time validation code\n* Sends the code to the appropriate channel:\n\n  * Email or mobile number, depending on the operation mode and input\n* Associates the code with:\n\n  * User identity (or login identifier)\n  * Requested operation (`mode`)\n  * Application context (if applicable)\n* Validation codes are valid for a limited duration and **cannot be reused**\n\n---\n\n### **Authentication**\n\nThis endpoint requires **Bearer Token authentication**,\n**except** where explicitly allowed (for example, login-related flows).\n\n```\nAuthorization: Bearer <access_token>\n```\n\n---\n\n### **Successful Response**\n\nOn success, the API confirms that the validation code has been generated and successfully dispatched to the user.\n\n---\n\n### **Error Response**\n\nThe API returns an error response if:\n\n* The user does not exist or is not eligible for the requested operation\n* The requested mode is invalid or unsupported\n* Required identifiers (email or mobile number for login verification) are missing\n* Rate limits are exceeded\n* Authorization fails (where applicable)\n\n---\n\n### **Security Notes (Recommended)**\n\n* Validation codes are single-use and time-bound\n* Rate limiting is enforced to prevent abuse\n* Repeated failures may trigger temporary blocking or additional verification\n\n---\n\n### **One-Line Summary**\n\n> Sends a one-time validation code for secure account and authentication operations, including login via email or mobile number.",
+        "operationId": "sendValidationCode",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "user_id": {
+                    "type": "string",
+                    "description": "user id"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "description": "Mode - 0 for getting activation code to change email or mobile number, 1 for password change"
+                  },
+                  "mobiles_number": {
+                    "type": "string"
+                  },
+                  "email_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "mode"
+                ]
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "string",
+                      "description": "Validation code sent successfully"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                },
+                "example": "\"error\": {\n    \"code\": \"XF_VALIDATION_ERROR\",\n    \"message\": \"Invalid parameter: Invalid mode\",\n    \"path\": \"/auth-service/send/validation/code\",\n    \"timestamp\": \"2026-01-12T08:11:59.993079561Z\"\n}"
+              }
+            },
+            "headers": {}
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "",
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message",
+                        "path",
+                        "timestamp"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                },
+                "example": {
+                  "error": {
+                    "code": "XF_VALIDATION_ERROR",
+                    "message": "Invalid parameter: Invalid mode",
+                    "path": "/auth-service/send/validation/code",
+                    "timestamp": "2026-01-12T08:11:59.993079561Z"
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    },
+    "/memory/identity/external-user": {
+      "post": {
+        "summary": "External User Registration",
+        "deprecated": false,
+        "description": "This API allows a calling application to **pass externally authenticated user identity information to xfloor** after completing authentication within its own system.\n\nxfloor **does not perform authentication, credential verification, or session management** as part of this API. The calling application is fully responsible for validating the user and ensuring the correctness of the identity data provided.\n\nUpon invocation, xfloor will:\n\n* **Create a new user profile** if no matching user exists, or\n* **Update the existing user profile** if the user is already present.\n\nxfloor returns a unique `xfloor_user_id`, which serves as the **canonical user identifier** and must be used in all subsequent xfloor APIs, including floors, blocks, conversations, memory interactions, and analytics.",
+        "operationId": "registerExternalUserIdentity",
+        "tags": [],
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "mobile_number": {
+                    "example": "",
+                    "type": "string"
+                  },
+                  "email_id": {
+                    "example": "",
+                    "type": "string"
+                  },
+                  "name": {
+                    "example": "",
+                    "type": "string"
+                  },
+                  "app_id": {
+                    "example": "",
+                    "type": "string"
+                  }
+                }
+              },
+              "examples": {}
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "profile": {
+                      "type": "object",
+                      "properties": {
+                        "floor_id": {
+                          "type": "string",
+                          "description": "Associated floor ID"
+                        },
+                        "fid": {
+                          "type": "string",
+                          "description": "Unique ID of floor"
+                        },
+                        "blocks": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/BlockDetails"
+                          },
+                          "description": "List of Blocks"
+                        },
+                        "name": {
+                          "type": "string",
+                          "description": "User Name"
+                        },
+                        "email": {
+                          "type": "string",
+                          "description": "Email ID"
+                        },
+                        "mobile_number": {
+                          "type": "string",
+                          "description": "Mobile number"
+                        },
+                        "user_id": {
+                          "type": "string",
+                          "description": "Unique User ID"
+                        },
+                        "avatar": {
+                          "type": "object",
+                          "properties": {
+                            "url": {
+                              "type": "string",
+                              "description": "Image URL"
+                            },
+                            "id": {
+                              "type": "string",
+                              "description": "Image ID"
+                            }
+                          },
+                          "required": [
+                            "url",
+                            "id"
+                          ],
+                          "description": "Profile Pick details"
+                        }
+                      },
+                      "required": [
+                        "floor_id",
+                        "fid",
+                        "user_id"
+                      ],
+                      "description": "User profile details"
+                    },
+                    "pod_info": {
+                      "type": "object",
+                      "properties": {
+                        "floor_id": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        },
+                        "details": {
+                          "type": "string"
+                        },
+                        "fid": {
+                          "type": "string"
+                        },
+                        "blocks": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/BlockDetails"
+                          }
+                        },
+                        "avatar": {
+                          "$ref": "#/components/schemas/Media"
+                        }
+                      },
+                      "required": [
+                        "floor_id",
+                        "title",
+                        "fid",
+                        "blocks"
+                      ]
+                    },
+                    "app_id": {
+                      "type": "string",
+                      "description": "App ID"
+                    }
+                  },
+                  "required": [
+                    "profile",
+                    "pod_info"
+                  ]
+                },
+                "example": {
+                  "pod_info": {
+                    "fid": "string",
+                    "floor_id": "string",
+                    "title": "string",
+                    "details": "string"
+                  },
+                  "profile": {
+                    "floor_id": "string",
+                    "fid": "string",
+                    "name": "string",
+                    "email": "string",
+                    "mobile_number": "string",
+                    "user_id": "string",
+                    "avatar": {
+                      "url": "string",
+                      "id": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "QueryResponse": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "block_type": {
+                  "type": "integer",
+                  "description": "block type ( 0 or 1)"
+                },
+                "block_id": {
+                  "type": "string",
+                  "description": "Will be a 13 digit unque number which identifies the block"
+                },
+                "floor_uid": {
+                  "type": "string",
+                  "description": "Unique ID given to the floor which cannot be modifed"
+                },
+                "event_id": {
+                  "type": "string",
+                  "description": "Content ID"
+                },
+                "text": {
+                  "type": "string",
+                  "description": "Related content"
+                },
+                "score": {
+                  "type": "number",
+                  "description": "Similarity Score"
+                },
+                "block_title": {
+                  "type": "string",
+                  "description": "Block Title"
+                },
+                "block_details": {
+                  "type": "string",
+                  "description": "Block Details"
+                },
+                "from_floor_uid": {
+                  "type": "string",
+                  "description": "Source floor content"
+                },
+                "user_id": {
+                  "type": "string",
+                  "description": "Author of the content"
+                },
+                "match_type": {
+                  "type": "string",
+                  "description": "Match type text or image"
+                }
+              },
+              "description": "Each item description"
+            },
+            "description": "List of source content"
+          },
+          "answer": {
+            "type": "string",
+            "description": "Summary of the posts"
+          }
+        }
+      },
+      "Media": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Url where media is stored"
+          },
+          "type": {
+            "type": "string",
+            "description": "ID of the media"
+          }
+        },
+        "required": [
+          "url",
+          "type"
+        ]
+      },
+      "UserDetails": {
+        "type": "object",
+        "properties": {
+          "profile": {
+            "type": "object",
+            "properties": {
+              "floor_id": {
+                "type": "string",
+                "description": "Associated floor ID"
+              },
+              "fid": {
+                "type": "string",
+                "description": "Unique ID of floor"
+              },
+              "blocks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BlockDetails"
+                },
+                "description": "List of Blocks"
+              },
+              "name": {
+                "type": "string",
+                "description": "User Name"
+              },
+              "email": {
+                "type": "string",
+                "description": "Email ID"
+              },
+              "mobile_number": {
+                "type": "string",
+                "description": "Mobile number"
+              },
+              "user_id": {
+                "type": "string",
+                "description": "Unique User ID"
+              },
+              "avatar": {
+                "type": "object",
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "description": "Image URL"
+                  },
+                  "id": {
+                    "type": "string",
+                    "description": "Image ID"
+                  }
+                },
+                "required": [
+                  "url",
+                  "id"
+                ],
+                "description": "Profile Pick details"
+              }
+            },
+            "required": [
+              "floor_id",
+              "fid",
+              "user_id"
+            ],
+            "description": "User profile details"
+          },
+          "pod_info": {
+            "type": "object",
+            "properties": {
+              "floor_id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "details": {
+                "type": "string"
+              },
+              "fid": {
+                "type": "string"
+              },
+              "blocks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BlockDetails"
+                }
+              },
+              "avatar": {
+                "$ref": "#/components/schemas/Media"
+              }
+            },
+            "required": [
+              "floor_id",
+              "title",
+              "fid",
+              "blocks"
+            ]
+          },
+          "app_id": {
+            "type": "string",
+            "description": "App ID"
+          }
+        },
+        "required": [
+          "profile",
+          "pod_info"
+        ]
+      },
+      "SignUpResponse": {
+        "type": "object",
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "description": "User ID"
+          },
+          "success": {
+            "type": "string",
+            "description": "Success string - \"Enter Validation code\""
+          }
+        },
+        "required": [
+          "user_id",
+          "success"
+        ]
+      },
+      "BlockDetails": {
+        "type": "object",
+        "properties": {
+          "bid": {
+            "type": "string",
+            "description": "Block ID"
+          },
+          "type": {
+            "type": "string",
+            "description": "Block Type"
+          },
+          "title": {
+            "type": "string",
+            "description": "Title of the block"
+          }
+        },
+        "required": [
+          "bid",
+          "type",
+          "title"
+        ],
+        "description": "Block Details"
+      },
+      "FloorInfo": {
+        "type": "object",
+        "properties": {
+          "floor_id": {
+            "type": "string",
+            "description": "Pod floor ID"
+          },
+          "title": {
+            "type": "string",
+            "description": "Title"
+          },
+          "details": {
+            "type": "string",
+            "description": "Brief description about the Pod floor"
+          },
+          "fid": {
+            "type": "string",
+            "description": "Unique numeric ID of the pod floor"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BlockDetails",
+              "description": "Details about each Block"
+            },
+            "description": "List of blocks"
+          },
+          "avatar": {
+            "$ref": "#/components/schemas/Media"
+          }
+        },
+        "required": [
+          "floor_id",
+          "title",
+          "fid"
+        ],
+        "description": "User's Pod floor Infomation"
+      },
+      "EventResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "success"
+        ]
+      },
+      "400ErrorCode": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Validation Error"
+          },
+          "message": {
+            "type": "string",
+            "description": "Error Message"
+          },
+          "path": {
+            "type": "string",
+            "description": "REST api path"
+          },
+          "timestamp": {
+            "type": "string",
+            "description": "Time stamp"
+          }
+        },
+        "required": [
+          "code",
+          "message",
+          "path",
+          "timestamp"
+        ]
+      }
+    },
+    "responses": {},
+    "securitySchemes": {
+      "bearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "https://appfloor.in",
+      "description": "Prod Env"
+    }
+  ],
+  "security": []
+}
