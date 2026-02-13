@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { APP_CONFIG } from '../config/appConfig';
 import { toSafeRichHtml } from '../utils/richText';
 
+const SCROLL_THRESHOLD_PX = 120;
+
 export default function QueryConversation() {
   const { user, podInfo } = useAuth();
   const [userId, setUserId] = useState('');
@@ -11,11 +13,22 @@ export default function QueryConversation() {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [loading, setLoading] = useState(false);
+  const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const isNearBottom = () => {
+    const container = chatContainerRef.current;
+    if (!container) return true;
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    return distanceFromBottom <= SCROLL_THRESHOLD_PX;
+  };
+
+  const scrollToBottom = (behavior = 'smooth') => {
+    const container = chatContainerRef.current;
+    if (!container) return;
+    container.scrollTo({ top: container.scrollHeight, behavior });
   };
 
   // Initialize user_id and floor_id from auth context
@@ -29,8 +42,15 @@ export default function QueryConversation() {
   }, [user, podInfo]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, loading]);
+    if (isPinnedToBottom) {
+      const behavior = messages.length <= 1 ? 'auto' : 'smooth';
+      scrollToBottom(behavior);
+    }
+  }, [messages, loading, isPinnedToBottom]);
+
+  const handleMessagesScroll = () => {
+    setIsPinnedToBottom(isNearBottom());
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -57,6 +77,7 @@ export default function QueryConversation() {
       timestamp: new Date().toISOString(),
     };
 
+    setIsPinnedToBottom(true);
     setMessages(prev => [...prev, userMessage]);
     const queryText = inputValue;
     setInputValue('');
@@ -136,6 +157,7 @@ export default function QueryConversation() {
   };
 
   const clearChat = () => {
+    setIsPinnedToBottom(true);
     setMessages([]);
   };
 
@@ -156,7 +178,11 @@ export default function QueryConversation() {
       </div>
 
       {/* Chat Messages Area */}
-      <div className="chat-messages" ref={chatContainerRef}>
+      <div
+        className="chat-messages"
+        ref={chatContainerRef}
+        onScroll={handleMessagesScroll}
+      >
         {messages.length === 0 && (
           <div className="empty-state">
             <div className="empty-icon">💬</div>
@@ -223,6 +249,21 @@ export default function QueryConversation() {
 
         <div ref={messagesEndRef} />
       </div>
+
+      {!isPinnedToBottom && messages.length > 0 && (
+        <button
+          type="button"
+          className="scroll-to-latest-btn"
+          onClick={() => {
+            setIsPinnedToBottom(true);
+            scrollToBottom('smooth');
+          }}
+          title="Scroll to latest messages"
+          aria-label="Scroll to latest messages"
+        >
+          ↓
+        </button>
+      )}
 
       {/* Input Area */}
       <form className="chat-input-form" onSubmit={handleSubmit}>
