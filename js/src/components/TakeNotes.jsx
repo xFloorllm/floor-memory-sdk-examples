@@ -116,6 +116,12 @@ export default function TakeNotes() {
       return;
     }
 
+    const normalizedUserId = typeof user?.userId === 'string' ? user.userId.trim() : '';
+    if (!normalizedUserId) {
+      setError('user_id is required before saving notes.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResponse(null);
@@ -127,7 +133,7 @@ export default function TakeNotes() {
         floor_id: podInfo.floor_id,
         block_type: '0',
         BID: blockId,
-        user_id: user.userId,
+        user_id: normalizedUserId,
         title: title || 'Voice Note',
         description: transcript,
         app_id: APP_CONFIG.APP_ID,

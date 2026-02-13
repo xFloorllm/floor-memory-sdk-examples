@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { getRecentEventsApi } from '../config/memoryClient';
 import { APP_CONFIG } from '../config/appConfig';
 import MediaViewer from './MediaViewer';
+import { toSafeRichHtml } from '../utils/richText';
 
 export default function RecentEvents() {
   const { user, podInfo } = useAuth();
@@ -150,9 +151,10 @@ export default function RecentEvents() {
               )}
 
               {event.text && (
-                <div className="event-content">
-                  {event.text}
-                </div>
+                <div
+                  className="event-content"
+                  dangerouslySetInnerHTML={{ __html: toSafeRichHtml(event.text) }}
+                />
               )}
 
               {event.media && event.media.length > 0 && (

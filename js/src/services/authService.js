@@ -4,24 +4,25 @@ import { getEditFloorApi, getFloorInfoApi } from '../config/memoryClient';
 const API_BASE_URL = APP_CONFIG.API_BASE_URL;
 
 /**
- * Get Bearer token - uses the token configured in appConfig.js
+ * Get Bearer token from runtime config
  */
 const getBearerToken = () => {
-  // Use the token from app config (set by developer)
-  return APP_CONFIG.BEARER_TOKEN !== 'YOUR_BEARER_TOKEN_HERE' ? APP_CONFIG.BEARER_TOKEN : localStorage.getItem('xfloor_token');
+  return APP_CONFIG.BEARER_TOKEN || localStorage.getItem('xfloor_token');
 };
 
 /**
- * Get App ID - checks localStorage first, then falls back to appConfig.js
+ * Get App ID from runtime config
  */
 const getAppId = () => {
-  // Check localStorage first (from credentials input)
-  const storedAppId = localStorage.getItem('xfloor_app_id');
-  if (storedAppId) {
-    return storedAppId;
+  return APP_CONFIG.APP_ID || localStorage.getItem('xfloor_app_id') || null;
+};
+
+const requireUserId = (userId, context) => {
+  const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
+  if (!normalizedUserId) {
+    throw new Error(`user_id is required to ${context}`);
   }
-  // Fall back to config
-  return APP_CONFIG.APP_ID !== 'YOUR_APP_ID_HERE' ? APP_CONFIG.APP_ID : null;
+  return normalizedUserId;
 };
 
 export const authService = {
@@ -292,17 +293,18 @@ export const authService = {
    * Get floor information
    * @param {string} floorId - Floor ID to fetch information for
    * @param {string} appId - App ID
-   * @param {string} userId - Optional user ID for context
+   * @param {string} userId - User ID for request context
    * @returns {Promise<Object>} Floor information including title, details, avatar, etc.
    */
-  async getFloorInfo(floorId, appId, userId = null) {
+  async getFloorInfo(floorId, appId, userId) {
+    const normalizedUserId = requireUserId(userId, 'fetch floor information');
     const floorInfoApi = getFloorInfoApi();
 
     return new Promise((resolve, reject) => {
       floorInfoApi.getFloorInformation(
         floorId,
         appId,
-        userId ? { user_id: userId } : {},
+        { userId: normalizedUserId },
         (error, data) => {
           if (error) {
             const errorMessage = error.message || error.response?.text || 'Failed to fetch floor information';
@@ -325,7 +327,7 @@ export const authService = {
    * @returns {Promise<Object>} Updated floor information
    */
   async editFloor(floorData) {
-    const userId = this.getUserId();
+    const userId = requireUserId(this.getUserId(), 'edit floor information');
     const appId = getAppId();
 
     // Use SDK's EditFloorApi

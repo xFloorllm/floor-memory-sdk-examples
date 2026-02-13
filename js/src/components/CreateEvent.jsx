@@ -113,6 +113,17 @@ export default function CreateEvent() {
       return;
     }
 
+    if (!podInfo?.floor_id) {
+      setError('floor_id is required before creating an event.');
+      return;
+    }
+
+    const normalizedUserId = typeof user?.userId === 'string' ? user.userId.trim() : '';
+    if (!normalizedUserId) {
+      setError('user_id is required before creating an event.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setResponse(null);
@@ -126,7 +137,7 @@ export default function CreateEvent() {
         floor_id: podInfo.floor_id,
         block_type: '0', // Default post type
         block_id: blockId,
-        user_id: user.userId,
+        user_id: normalizedUserId,
         title: title || '',
         description: description || ''
       };

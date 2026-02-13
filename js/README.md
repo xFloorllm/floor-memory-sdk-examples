@@ -18,45 +18,73 @@ A comprehensive React application demonstrating the xFloor JavaScript SDK with f
 
 ## Prerequisites
 
-- Node.js (v16 or higher)
-- npm or yarn
+- Node.js (v18 or higher recommended)
+- npm (installed with Node.js)
 - xFloor Bearer Token (from your dashboard)
 - xFloor App ID (13-digit numeric value from developer registration)
 
 ## Installation
 
-1. Install dependencies:
+1. Install Node.js and npm (if not already installed):
+
+macOS (Homebrew):
+```bash
+brew install node
+```
+
+Linux (Debian/Ubuntu):
+```bash
+sudo apt update && sudo apt install -y nodejs npm
+```
+
+Windows (PowerShell via winget):
+```powershell
+winget install OpenJS.NodeJS.LTS
+```
+
+Verify installation (all platforms):
+```bash
+node -v
+npm -v
+```
+
+2. Install project dependencies:
 ```bash
 npm install
 ```
 
-2. **⚠️ REQUIRED: Configure Bearer Token and App ID**
+3. Update the xFloor JS SDK to the latest published version:
+```bash
+npm install @xfloor/floor-memory-sdk-js@latest
+npm ls @xfloor/floor-memory-sdk-js
+```
 
-   Open `src/config/appConfig.js` and replace the placeholder values:
+4. Configure runtime credentials:
 
-   ```javascript
-   export const APP_CONFIG = {
-     // Your actual Bearer token from xFloor dashboard
-     BEARER_TOKEN: 'your_actual_bearer_token_here',
+   Start the app and enter your Bearer Token, App ID, Pod Floor ID, and User ID in the frontend credentials form.
 
-     // Your 13-digit App ID from developer registration
-     APP_ID: 'xxxxxxxxxxxxx',
+   You can also provide credentials via Vite environment variables:
+   - `VITE_XFLOOR_BEARER_TOKEN`
+   - `VITE_XFLOOR_APP_ID`
+   - `VITE_XFLOOR_API_BASE_URL`
 
-     // API Base URL (default: production)
-     API_BASE_URL: 'https://appfloor.in',
-   };
-   ```
+5. (Optional) Create a `.env` file for additional configuration:
 
-   **These values MUST be configured before running the app!**
-
-3. (Optional) Create a `.env` file for additional configuration:
+macOS/Linux:
 ```bash
 cp .env.example .env
 ```
 
-Add your xFloor API key if needed:
+Windows PowerShell:
+```powershell
+Copy-Item .env.example .env
 ```
-VITE_XFLOOR_API_KEY=your_api_key_here
+
+Add your xFloor variables if needed:
+```
+VITE_XFLOOR_BEARER_TOKEN=your_bearer_token_here
+VITE_XFLOOR_APP_ID=your_app_id_here
+VITE_XFLOOR_API_BASE_URL=https://appfloor.in
 ```
 
 ## Running the App
@@ -92,7 +120,7 @@ FloorMemorySamples/
 │   │   ├── CreateEvent.jsx          # Create events/content
 │   │   └── ConversationHistory.jsx  # View conversation history
 │   ├── config/
-│   │   ├── appConfig.js             # ⚠️ CONFIGURE THIS: Bearer token & App ID
+│   │   ├── appConfig.js             # Runtime config (env/localStorage)
 │   │   └── memoryClient.js          # SDK client singleton
 │   ├── context/
 │   │   └── AuthContext.jsx          # Authentication state management

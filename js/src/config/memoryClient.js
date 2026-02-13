@@ -62,10 +62,15 @@ export const getMemoryClient = () => {
   console.warn('getMemoryClient is deprecated. Use getQueryApi instead.');
   return {
     query: async ({ userId, floorId, query }) => {
+      const normalizedUserId = typeof userId === 'string' ? userId.trim() : '';
+      if (!normalizedUserId) {
+        throw new Error('user_id is required to query conversations.');
+      }
+
       const queryApi = getQueryApi();
       return new Promise((resolve, reject) => {
         const queryRequest = {
-          user_id: userId,
+          user_id: normalizedUserId,
           query: query,
           floor_ids: [floorId],
           k: 5,

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { getQueryApi } from '../config/memoryClient';
 import { useAuth } from '../context/AuthContext';
 import { APP_CONFIG } from '../config/appConfig';
+import { toSafeRichHtml } from '../utils/richText';
 
 export default function QueryConversation() {
   const { user, podInfo } = useAuth();
@@ -35,6 +36,20 @@ export default function QueryConversation() {
     e.preventDefault();
     if (!inputValue.trim() || loading) return;
 
+    const normalizedUserId = userId.trim();
+    const normalizedFloorId = floorId.trim();
+
+    if (!normalizedUserId || !normalizedFloorId) {
+      const validationMessage = {
+        id: Date.now(),
+        type: 'error',
+        content: 'user_id and floor_id are required before sending a query.',
+        timestamp: new Date().toISOString(),
+      };
+      setMessages(prev => [...prev, validationMessage]);
+      return;
+    }
+
     const userMessage = {
       id: Date.now(),
       type: 'user',
@@ -52,9 +67,9 @@ export default function QueryConversation() {
       const queryApi = getQueryApi();
 
       const queryRequest = {
-        user_id: userId,
+        user_id: normalizedUserId,
         query: queryText,
-        floor_ids: [floorId],
+        floor_ids: [normalizedFloorId],
         k: 5,
         include_metadata: '1',
         summary_needed: '1',
@@ -174,7 +189,14 @@ export default function QueryConversation() {
               </div>
               <div className="message-text">
                 {typeof message.content === 'string' ? (
-                  message.content
+                  message.type === 'assistant' ? (
+                    <div
+                      className="rich-content"
+                      dangerouslySetInnerHTML={{ __html: toSafeRichHtml(message.content) }}
+                    />
+                  ) : (
+                    message.content
+                  )
                 ) : (
                   <pre className="json-response">{JSON.stringify(message.content, null, 2)}</pre>
                 )}
