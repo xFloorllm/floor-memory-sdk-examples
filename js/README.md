@@ -40,7 +40,7 @@ npm install
      BEARER_TOKEN: 'your_actual_bearer_token_here',
 
      // Your 13-digit App ID from developer registration
-     APP_ID: '1234567890123',
+     APP_ID: 'xxxxxxxxxxxxx',
 
      // API Base URL (default: production)
      API_BASE_URL: 'https://appfloor.in',
