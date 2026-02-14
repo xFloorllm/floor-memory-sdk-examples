@@ -20,8 +20,16 @@ A React + TypeScript application demonstrating the xFloor TypeScript SDK with au
 
 ## Installation
 
+1. Install project dependencies:
+
 ```bash
 npm install
+```
+
+2. If you see `vite: command not found`, install Vite and the React plugin:
+
+```bash
+npm install -D vite @vitejs/plugin-react
 ```
 
 ## Configuration
