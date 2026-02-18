@@ -32,7 +32,7 @@ If the Java SDK version changes, update this project in this order:
 2. If you built SDK locally (not yet published), install it to local Maven cache first:
 
 ```bash
-cd /path/to/floor-memory-sdk-client/java
+cd /path/to/floor-memory-sdk-client/java/server
 mvn clean install -DskipTests
 ```
 
