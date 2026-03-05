@@ -13,7 +13,7 @@ This project keeps the existing React frontend and routes all xFloor calls throu
 
 - Java SDK docs: https://docs.xfloor.ai/java-sdk-1930594m0
 - Java SDK source: https://github.com/xFloorllm/floor-memory-sdk-client/tree/main/java
-- Maven artifact used by server: `ai.xfloor.sdk:floor-memory-sdk-client:1.0.9`
+- Maven artifact used by server: `ai.xfloor.sdk:floor-memory-sdk-client:1.0.23`
 
 ## Updating SDK Version
 

@@ -1,11 +1,13 @@
 import type {
-  GetFloorInformation200Response,
+  EditFloor200Response,
+  FloorInfo,
   SendValidationCode200Response,
-  SignInWithEmail200Response,
+  SignInResponse,
   SignUp200Response,
+  UserDetailsPodInfo,
 } from '@xfloor/floor-memory-sdk-ts';
 import { APP_CONFIG } from '../config/appConfig';
-import { getDefaultApi, getEditFloorApi, getFloorInfoApi, getActiveAppId, getActiveToken } from '../config/memoryClient';
+import { getAuthApi, getFloorApi, getActiveAppId, getActiveToken } from '../config/memoryClient';
 
 type SignUpInput = {
   name: string;
@@ -45,7 +47,21 @@ type EditFloorInput = {
   appId?: string;
 };
 
-type StoredProfile = SignInWithEmail200Response['profile'] | { userId: string; name?: string };
+type StoredProfile = SignInResponse['profile'] | { userId: string; name?: string };
+
+const normalizePodInfo = (podInfo: FloorInfo | UserDetailsPodInfo | EditFloor200Response): FloorInfo => {
+  return {
+    floorId: podInfo.floorId,
+    title: podInfo.title || `Floor ${podInfo.floorId}`,
+    details: podInfo.details,
+    floorUid: podInfo.floorUid || podInfo.floorId,
+    blocks: podInfo.blocks || [],
+    avatar: podInfo.avatar,
+    isOwner: podInfo.isOwner ?? '0',
+    floorType: 'floorType' in podInfo && typeof podInfo.floorType === 'string' ? podInfo.floorType : 'POD',
+    appId: podInfo.appId,
+  };
+};
 
 const getAppId = (): string | null => {
   const storedAppId = localStorage.getItem('xfloor_app_id');
@@ -73,7 +89,7 @@ const storeAuthToken = (token: string | null): void => {
   }
 };
 
-const storeUserSession = (data: SignInWithEmail200Response): void => {
+const storeUserSession = (data: SignInResponse): void => {
   if (data.profile?.userId) {
     localStorage.setItem('xfloor_user_id', data.profile.userId);
   }
@@ -83,7 +99,7 @@ const storeUserSession = (data: SignInWithEmail200Response): void => {
   }
 
   if (data.podInfo) {
-    localStorage.setItem('xfloor_pod_info', JSON.stringify(data.podInfo));
+    localStorage.setItem('xfloor_pod_info', JSON.stringify(normalizePodInfo(data.podInfo)));
   }
 
   if (data.profile) {
@@ -120,10 +136,10 @@ const getApiErrorMessage = async (error: unknown, fallback: string): Promise<str
 export const authService = {
   async signUp(userData: SignUpInput): Promise<SignUp200Response> {
     const appId = userData.app_id || getAppId() || undefined;
-    const defaultApi = getDefaultApi();
+    const authApi = getAuthApi();
 
     try {
-      const rawResponse = await defaultApi.signUpRaw({
+      const rawResponse = await authApi.signUpRaw({
         name: userData.name,
         emailId: userData.email_id,
         mobileNumber: userData.mobile_number,
@@ -139,12 +155,12 @@ export const authService = {
     }
   },
 
-  async signInWithEmail(credentials: SignInEmailInput): Promise<SignInWithEmail200Response> {
+  async signInWithEmail(credentials: SignInEmailInput): Promise<SignInResponse> {
     const appId = credentials.app_id || getAppId() || undefined;
-    const defaultApi = getDefaultApi();
+    const authApi = getAuthApi();
 
     try {
-      const rawResponse = await defaultApi.signInWithEmailRaw({
+      const rawResponse = await authApi.signInWithEmailRaw({
         emailId: credentials.email_id,
         passCode: credentials.pass_code,
         loginType: credentials.login_type,
@@ -160,18 +176,16 @@ export const authService = {
     }
   },
 
-  async signInWithMobile(credentials: SignInMobileInput): Promise<SignInWithEmail200Response> {
+  async signInWithMobile(credentials: SignInMobileInput): Promise<SignInResponse> {
     const appId = credentials.app_id || getAppId() || undefined;
-    const defaultApi = getDefaultApi();
+    const authApi = getAuthApi();
 
     try {
-      const rawResponse = await defaultApi.signInWithMobileNumberRaw({
-        body: {
-          mobile_number: credentials.mobile_number,
-          pass_code: credentials.pass_code,
-          login_type: credentials.login_type,
-          app_id: appId,
-        },
+      const rawResponse = await authApi.signInWithMobileNumberRaw({
+        mobileNumber: credentials.mobile_number,
+        passCode: credentials.pass_code,
+        loginType: credentials.login_type,
+        appId,
       });
 
       const data = await rawResponse.value();
@@ -184,16 +198,15 @@ export const authService = {
   },
 
   async sendValidationCode(data: SendValidationCodeInput): Promise<SendValidationCode200Response> {
-    const defaultApi = getDefaultApi();
+    const authApi = getAuthApi();
 
     try {
-      return await defaultApi.sendValidationCode({
-        sendValidationCodeRequest: {
-          userId: data.user_id,
-          mode: data.mode,
-          emailId: data.email_id,
-          mobilesNumber: data.mobile_number,
-        },
+      return await authApi.sendValidationCode({
+        userId: data.user_id,
+        mode: data.mode,
+        emailId: data.email_id,
+        mobileNumber: data.mobile_number,
+        appId: getAppId() || undefined,
       });
     } catch (error) {
       throw new Error(await getApiErrorMessage(error, 'Failed to send validation code'));
@@ -221,9 +234,9 @@ export const authService = {
     return localStorage.getItem('xfloor_floor_id');
   },
 
-  getPodInfo(): GetFloorInformation200Response | null {
+  getPodInfo(): FloorInfo | null {
     const podInfo = localStorage.getItem('xfloor_pod_info');
-    return podInfo ? (JSON.parse(podInfo) as GetFloorInformation200Response) : null;
+    return podInfo ? (JSON.parse(podInfo) as FloorInfo) : null;
   },
 
   getProfile(): StoredProfile | null {
@@ -235,21 +248,18 @@ export const authService = {
     return getBearerToken();
   },
 
-  async getFloorInfo(floorId: string, appId: string, userId?: string): Promise<GetFloorInformation200Response> {
-    const floorInfoApi = getFloorInfoApi();
+  async getFloorInfo(floorId: string, appId: string, userId?: string): Promise<FloorInfo> {
+    const floorApi = getFloorApi();
 
     try {
-      return await floorInfoApi.getFloorInformation({
-        floorId,
-        appId,
-        userId,
-      });
+      const response = await floorApi.getFloorInformation({ floorId, appId, userId });
+      return normalizePodInfo(response);
     } catch (error) {
       throw new Error(await getApiErrorMessage(error, 'Failed to fetch floor information'));
     }
   },
 
-  async editFloor(floorData: EditFloorInput): Promise<GetFloorInformation200Response> {
+  async editFloor(floorData: EditFloorInput): Promise<FloorInfo> {
     const userId = floorData.userId || this.getUserId();
     const appId = floorData.appId || getActiveAppId();
 
@@ -261,10 +271,10 @@ export const authService = {
       throw new Error('App ID is required to edit floor');
     }
 
-    const editFloorApi = getEditFloorApi();
+    const floorApi = getFloorApi();
 
     try {
-      const updatedFloor = await editFloorApi.editFloor({
+      const updatedFloor = await floorApi.editFloor({
         floorId: floorData.floorId,
         userId,
         appId,
@@ -272,13 +282,14 @@ export const authService = {
         details: floorData.details,
         logoFile: floorData.logoFile,
       });
+      const normalizedFloor = normalizePodInfo(updatedFloor);
 
       const currentPodInfo = this.getPodInfo();
       if (currentPodInfo && currentPodInfo.floorId === floorData.floorId) {
-        localStorage.setItem('xfloor_pod_info', JSON.stringify(updatedFloor));
+        localStorage.setItem('xfloor_pod_info', JSON.stringify(normalizedFloor));
       }
 
-      return updatedFloor;
+      return normalizedFloor;
     } catch (error) {
       throw new Error(await getApiErrorMessage(error, 'Failed to edit floor'));
     }

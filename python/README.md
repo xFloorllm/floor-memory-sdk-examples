@@ -12,7 +12,8 @@ This project now keeps the existing React frontend, but routes all xFloor SDK ca
 ## SDK + Docs
 
 - Python SDK docs: https://docs.xfloor.ai/python-sdk-1930592m0
-- SDK source repo (includes Python client): https://github.com/xFloorllm/floor-memory-sdk-client
+- Python package: https://pypi.org/project/xfloor-memory-sdk/
+- Current pinned SDK version in this sample: `xfloor-memory-sdk==1.0.23`
 
 ## Project Structure
 
@@ -35,7 +36,6 @@ This project now keeps the existing React frontend, but routes all xFloor SDK ca
 
 - Node.js 18+
 - Python 3.9+
-- `git` (required because Python SDK dependency is installed from GitHub)
 
 ## Setup
 
@@ -105,8 +105,6 @@ Open: `http://localhost:3000`
 - `GET /memory/recent-events`
 - `GET /memory/floors/{floor_id}`
 - `POST /memory/floors/{floor_id}/edit`
-- `GET /memory/conversations`
-- `GET /memory/threads`
 - `POST /memory/auth/sign-up`
 - `POST /memory/auth/sign-in/email`
 - `POST /memory/auth/sign-in/mobile`
@@ -114,6 +112,7 @@ Open: `http://localhost:3000`
 
 ## Notes
 
+- With SDK `1.0.23+`, event creation requires `user_id`. This server accepts it either as a form field or inside the `input_info` JSON.
 - Event ingestion is asynchronous on xFloor; successful create event means accepted/queued.
 - If newly added content does not appear immediately in query results, refresh recent events or retry after a short delay.
 

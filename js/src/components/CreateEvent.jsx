@@ -130,7 +130,7 @@ export default function CreateEvent() {
 
     try {
       // Get first block from pod info
-      const blockId = podInfo?.blocks?.[0]?.bid || '';
+      const blockId = podInfo?.blocks?.[0]?.block_id || podInfo?.blocks?.[0]?.bid || '';
 
       // Create input_info JSON
       const inputInfo = {
@@ -144,35 +144,36 @@ export default function CreateEvent() {
 
       const inputInfoString = JSON.stringify(inputInfo);
 
-      // Create files object for SDK
-      const filesObject = {};
-      if (selectedFiles.length > 0) {
-        // SDK expects files as an object with keys like 'files'
-        filesObject.files = selectedFiles;
-      }
-
       // Use SDK's EventApi
       const eventApi = getEventApi();
 
       return new Promise((resolve, reject) => {
-        eventApi.event(inputInfoString, APP_CONFIG.APP_ID, filesObject, (error, data) => {
-          if (error) {
-            setError(error.message || error.response?.text || 'Failed to create event');
-            console.error('Create event error:', error);
-            setLoading(false);
-            reject(error);
-          } else {
-            setResponse(data);
+        eventApi.event(
+          inputInfoString,
+          APP_CONFIG.APP_ID,
+          normalizedUserId,
+          {
+            files: selectedFiles.length > 0 ? selectedFiles : undefined
+          },
+          (error, data) => {
+            if (error) {
+              setError(error.message || error.response?.text || 'Failed to create event');
+              console.error('Create event error:', error);
+              setLoading(false);
+              reject(error);
+            } else {
+              setResponse(data);
 
-            // Clear form on success
-            setTitle('');
-            setDescription('');
-            setSelectedFiles([]);
-            setCurrentMediaType(null);
-            setLoading(false);
-            resolve(data);
+              // Clear form on success
+              setTitle('');
+              setDescription('');
+              setSelectedFiles([]);
+              setCurrentMediaType(null);
+              setLoading(false);
+              resolve(data);
+            }
           }
-        });
+        );
       });
     } catch (err) {
       setError(err.message || 'Failed to create event');

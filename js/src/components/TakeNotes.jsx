@@ -127,12 +127,12 @@ export default function TakeNotes() {
     setResponse(null);
 
     try {
-      const blockId = podInfo?.blocks?.[0]?.bid || '';
+      const blockId = podInfo?.blocks?.[0]?.block_id || podInfo?.blocks?.[0]?.bid || '';
 
       const inputInfo = {
         floor_id: podInfo.floor_id,
         block_type: '0',
-        BID: blockId,
+        block_id: blockId,
         user_id: normalizedUserId,
         title: title || 'Voice Note',
         description: transcript,
@@ -143,7 +143,7 @@ export default function TakeNotes() {
       const eventApi = getEventApi();
 
       return new Promise((resolve, reject) => {
-        eventApi.event(inputInfoString, {}, (error, data) => {
+        eventApi.event(inputInfoString, APP_CONFIG.APP_ID, normalizedUserId, {}, (error, data) => {
           if (error) {
             setError(error.message || error.response?.text || 'Failed to save notes');
             console.error('Save notes error:', error);

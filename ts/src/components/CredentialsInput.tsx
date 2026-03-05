@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import type { GetFloorInformation200Response } from '@xfloor/floor-memory-sdk-ts';
+import type { FloorInfo } from '@xfloor/floor-memory-sdk-ts';
 import { useAuth } from '../context/AuthContext';
 import { authService } from '../services/authService';
 
@@ -19,7 +19,7 @@ export default function CredentialsInput() {
   const [userId, setUserId] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [floorInfo, setFloorInfo] = useState<GetFloorInformation200Response | null>(null);
+  const [floorInfo, setFloorInfo] = useState<FloorInfo | null>(null);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();

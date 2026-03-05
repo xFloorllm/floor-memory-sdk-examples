@@ -1,11 +1,9 @@
 import {
+  AuthApi,
   Configuration,
-  DefaultApi,
-  EditFloorApi,
   EventApi,
+  FloorApi,
   type EventResponse,
-  GetFloorInformationApi,
-  GetRecentEventsApi,
   QueryApi,
 } from '@xfloor/floor-memory-sdk-ts';
 import { APP_CONFIG } from './appConfig';
@@ -29,50 +27,26 @@ const createConfiguration = (): Configuration => {
   });
 };
 
-export const getDefaultApi = (): DefaultApi => new DefaultApi(createConfiguration());
+export const getAuthApi = (): AuthApi => new AuthApi(createConfiguration());
 export const getQueryApi = (): QueryApi => new QueryApi(createConfiguration());
 export const getEventApi = (): EventApi => new EventApi(createConfiguration());
-export const getRecentEventsApi = (): GetRecentEventsApi => new GetRecentEventsApi(createConfiguration());
-export const getEditFloorApi = (): EditFloorApi => new EditFloorApi(createConfiguration());
-export const getFloorInfoApi = (): GetFloorInformationApi => new GetFloorInformationApi(createConfiguration());
+export const getRecentEventsApi = (): EventApi => new EventApi(createConfiguration());
+export const getFloorApi = (): FloorApi => new FloorApi(createConfiguration());
 
 export const createEventWithFiles = async (
   inputInfo: string,
   appId: string,
+  userId: string,
   files: File[] = []
 ): Promise<EventResponse> => {
   const eventApi = getEventApi();
 
-  if (files.length <= 1) {
-    return eventApi.event({
-      inputInfo,
-      appId,
-      files: files[0],
-    });
-  }
-
-  // The generated SDK type accepts a single Blob, but the API supports multiple files.
-  // Override the request body with multipart form data containing repeated "files" fields.
-  const rawResponse = await eventApi.eventRaw(
-    {
-      inputInfo,
-      appId,
-      files: files[0],
-    },
-    async ({ init }) => {
-      const formData = new FormData();
-      files.forEach((file) => formData.append('files', file));
-      formData.append('input_info', inputInfo);
-      formData.append('app_id', appId);
-
-      return {
-        ...init,
-        body: formData,
-      };
-    }
-  );
-
-  return rawResponse.value();
+  return eventApi.event({
+    inputInfo,
+    appId,
+    userId,
+    files: files.length > 0 ? files : undefined,
+  });
 };
 
 export const getMemoryClient = () => {
@@ -95,19 +69,8 @@ export const getMemoryClient = () => {
       return result.answer || result;
     },
 
-    getConversations: async ({ userId, floorId }: { userId: string; floorId?: string }) => {
-      const defaultApi = getDefaultApi();
-
-      let threadId: string | undefined;
-      if (floorId) {
-        const threads = await defaultApi.conversationThreads({ userId, floorId });
-        threadId = threads.threads?.[0]?.threadId;
-      }
-
-      return defaultApi.getConversations({
-        userId,
-        threadId,
-      });
+    getConversations: async (_: { userId: string; floorId?: string }) => {
+      throw new Error('Conversation history endpoints are not available in @xfloor/floor-memory-sdk-ts v1.0.23.');
     },
   };
 };

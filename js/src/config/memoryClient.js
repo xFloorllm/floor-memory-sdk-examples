@@ -2,9 +2,7 @@ import {
   ApiClient,
   QueryApi,
   EventApi,
-  GetRecentEventsApi,
-  EditFloorApi,
-  GetFloorInformationApi
+  FloorApi
 } from '@xfloor/floor-memory-sdk-js';
 import { APP_CONFIG } from './appConfig';
 
@@ -43,18 +41,21 @@ export const getEventApi = () => {
 };
 
 export const getRecentEventsApi = () => {
+  // In SDK >= 1.0.23, recent events are served by EventApi#getRecentEvents.
+  return getEventApi();
+};
+
+export const getFloorApi = () => {
   initializeSDK();
-  return new GetRecentEventsApi();
+  return new FloorApi();
 };
 
 export const getEditFloorApi = () => {
-  initializeSDK();
-  return new EditFloorApi();
+  return getFloorApi();
 };
 
 export const getFloorInfoApi = () => {
-  initializeSDK();
-  return new GetFloorInformationApi();
+  return getFloorApi();
 };
 
 // Legacy export for backward compatibility (used by QueryConversation)

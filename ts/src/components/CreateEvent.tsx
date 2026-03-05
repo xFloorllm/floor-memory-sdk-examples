@@ -140,7 +140,7 @@ export default function CreateEvent() {
         description: description || '',
       };
 
-      const data = await createEventWithFiles(JSON.stringify(inputInfo), getActiveAppId(), selectedFiles);
+      const data = await createEventWithFiles(JSON.stringify(inputInfo), getActiveAppId(), user.userId, selectedFiles);
       setResponse(data);
 
       setTitle('');

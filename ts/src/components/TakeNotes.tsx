@@ -135,7 +135,7 @@ export default function TakeNotes() {
         description: transcript,
       };
 
-      const data = await createEventWithFiles(JSON.stringify(inputInfo), getActiveAppId(), []);
+      const data = await createEventWithFiles(JSON.stringify(inputInfo), getActiveAppId(), user.userId, []);
       setResponse(data);
       setTitle('');
       setTranscript('');

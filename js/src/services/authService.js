@@ -323,21 +323,24 @@ export const authService = {
    * @param {string} floorData.floor_id - Floor ID to edit
    * @param {string} floorData.title - New title (optional)
    * @param {string} floorData.details - New details/description (optional)
-   * @param {File} floorData.logo_file - New logo file (optional)
+   * @param {File} floorData.logo_file - New logo file (optional, legacy key)
+   * @param {File} floorData.logoFile - New logo file (optional, SDK key)
    * @returns {Promise<Object>} Updated floor information
    */
   async editFloor(floorData) {
     const userId = requireUserId(this.getUserId(), 'edit floor information');
     const appId = getAppId();
 
-    // Use SDK's EditFloorApi
+    // Use SDK floor API wrapper
     const editFloorApi = getEditFloorApi();
 
     // Build body object with optional fields
     const body = {};
     if (floorData.title) body.title = floorData.title;
     if (floorData.details) body.details = floorData.details;
-    if (floorData.logo_file) body.logo_file = floorData.logo_file;
+    if (floorData.logoFile || floorData.logo_file) {
+      body.logoFile = floorData.logoFile || floorData.logo_file;
+    }
 
     return new Promise((resolve, reject) => {
       editFloorApi.editFloor(

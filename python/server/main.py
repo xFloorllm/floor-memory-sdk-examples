@@ -1,12 +1,12 @@
 import json
 import os
 from contextlib import contextmanager
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from fastapi import FastAPI, File, Form, Header, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 import urllib3
 
 import xfloor_memory_sdk
@@ -80,6 +80,7 @@ class SendValidationCodePayload(BaseModel):
     user_id: Optional[str] = None
     email_id: Optional[str] = None
     mobile_number: Optional[str] = None
+    app_id: Optional[str] = None
 
 
 def _extract_access_token(authorization: Optional[str]) -> Optional[str]:
@@ -234,6 +235,20 @@ def _success_response_with_auth(data: Any, status_code: int, auth_header: Option
     return JSONResponse(status_code=status_code, content=_to_plain(data), headers=headers)
 
 
+def _extract_user_id_from_input_info(input_info: str) -> Optional[str]:
+    try:
+        parsed = json.loads(input_info)
+    except (TypeError, json.JSONDecodeError):
+        return None
+
+    if isinstance(parsed, dict):
+        user_id = parsed.get("user_id")
+        if isinstance(user_id, str) and user_id.strip():
+            return user_id.strip()
+
+    return None
+
+
 @app.get("/health")
 def health() -> Dict[str, str]:
     return {"status": "ok"}
@@ -262,10 +277,23 @@ def query(
 async def create_event(
     input_info: str = Form(...),
     app_id: str = Form(...),
+    user_id: Optional[str] = Form(default=None),
     files: Optional[List[UploadFile]] = File(default=None),
     authorization: Optional[str] = Header(default=None),
 ):
     token = _extract_access_token(authorization)
+    event_user_id = (user_id or "").strip() or _extract_user_id_from_input_info(input_info)
+
+    if not event_user_id:
+        return JSONResponse(
+            status_code=400,
+            content={
+                "error": {
+                    "message": "user_id is required for event creation in Python SDK >= 1.0.23.",
+                    "details": "Pass user_id as form-data field or include it in input_info JSON.",
+                }
+            },
+        )
 
     try:
         with _sdk_client(token) as api_client:
@@ -278,34 +306,12 @@ async def create_event(
                         continue
                     prepared_files.append((uploaded_file.filename, await uploaded_file.read()))
 
-            if not prepared_files:
-                response = api.event(input_info=input_info, app_id=app_id)
-            elif len(prepared_files) == 1:
-                response = api.event(
-                    input_info=input_info,
-                    app_id=app_id,
-                    files=prepared_files[0],
-                )
-            else:
-                # SDK type hints only accept a single file, but the serializer supports lists.
-                serialized = api._event_serialize(
-                    input_info=input_info,
-                    app_id=app_id,
-                    files=prepared_files,
-                    _request_auth=None,
-                    _content_type=None,
-                    _headers=None,
-                    _host_index=0,
-                )
-                raw_response = api_client.call_api(*serialized)
-                raw_response.read()
-                response = api_client.response_deserialize(
-                    response_data=raw_response,
-                    response_types_map={
-                        "200": "EventResponse",
-                        "400": "Event400Response",
-                    },
-                ).data
+            response = api.event(
+                input_info=input_info,
+                app_id=app_id,
+                user_id=event_user_id,
+                files=prepared_files or None,
+            )
 
             return _to_plain(response)
     except ApiException as exc:
@@ -323,7 +329,7 @@ def get_recent_events(
 
     try:
         with _sdk_client(token) as api_client:
-            api = xfloor_memory_sdk.GetRecentEventsApi(api_client)
+            api = xfloor_memory_sdk.EventApi(api_client)
             response = api.get_recent_events(floor_id=floor_id, app_id=app_id, user_id=user_id)
             return _to_plain(response)
     except ApiException as exc:
@@ -341,7 +347,7 @@ def get_floor_information(
 
     try:
         with _sdk_client(token) as api_client:
-            api = xfloor_memory_sdk.GetFloorInformationApi(api_client)
+            api = xfloor_memory_sdk.FloorApi(api_client)
             response = api.get_floor_information(
                 floor_id=floor_id,
                 app_id=app_id,
@@ -366,7 +372,7 @@ async def edit_floor(
 
     try:
         with _sdk_client(token) as api_client:
-            api = xfloor_memory_sdk.EditFloorApi(api_client)
+            api = xfloor_memory_sdk.FloorApi(api_client)
 
             logo_payload: Optional[Tuple[str, bytes]] = None
             if logo_file and logo_file.filename:
@@ -391,15 +397,19 @@ def get_conversations(
     thread_id: Optional[str] = None,
     authorization: Optional[str] = Header(default=None),
 ):
-    token = _extract_access_token(authorization)
-
-    try:
-        with _sdk_client(token) as api_client:
-            api = xfloor_memory_sdk.DefaultApi(api_client)
-            response = api.get_conversations(user_id=user_id, thread_id=thread_id)
-            return _to_plain(response)
-    except ApiException as exc:
-        return _sdk_exception_response(exc)
+    _ = user_id, thread_id, authorization
+    return JSONResponse(
+        status_code=501,
+        content={
+            "error": {
+                "message": (
+                    "Conversation history endpoints are not available in "
+                    f"xfloor-memory-sdk {getattr(xfloor_memory_sdk, '__version__', 'unknown')}."
+                ),
+                "details": "Use SDK-supported APIs (AuthApi, EventApi, FloorApi, QueryApi).",
+            }
+        },
+    )
 
 
 @app.get("/memory/threads")
@@ -408,15 +418,19 @@ def get_threads(
     floor_id: str,
     authorization: Optional[str] = Header(default=None),
 ):
-    token = _extract_access_token(authorization)
-
-    try:
-        with _sdk_client(token) as api_client:
-            api = xfloor_memory_sdk.DefaultApi(api_client)
-            response = api.conversation_threads(user_id=user_id, floor_id=floor_id)
-            return _to_plain(response)
-    except ApiException as exc:
-        return _sdk_exception_response(exc)
+    _ = user_id, floor_id, authorization
+    return JSONResponse(
+        status_code=501,
+        content={
+            "error": {
+                "message": (
+                    "Conversation thread endpoints are not available in "
+                    f"xfloor-memory-sdk {getattr(xfloor_memory_sdk, '__version__', 'unknown')}."
+                ),
+                "details": "Use SDK-supported APIs (AuthApi, EventApi, FloorApi, QueryApi).",
+            }
+        },
+    )
 
 
 @app.post("/memory/auth/sign-up")
@@ -428,7 +442,7 @@ def sign_up(
 
     try:
         with _sdk_client(token) as api_client:
-            api = xfloor_memory_sdk.DefaultApi(api_client)
+            api = xfloor_memory_sdk.AuthApi(api_client)
             response = api.sign_up_with_http_info(
                 name=payload.name,
                 password=payload.password,
@@ -454,7 +468,7 @@ def sign_in_with_email(
 
     try:
         with _sdk_client(token) as api_client:
-            api = xfloor_memory_sdk.DefaultApi(api_client)
+            api = xfloor_memory_sdk.AuthApi(api_client)
             response = api.sign_in_with_email_with_http_info(
                 email_id=payload.email_id,
                 pass_code=payload.pass_code,
@@ -477,18 +491,15 @@ def sign_in_with_mobile(
 ):
     token = _extract_access_token(authorization)
 
-    body = {
-        "mobile_number": payload.mobile_number,
-        "pass_code": payload.pass_code,
-        "login_type": payload.login_type,
-    }
-    if payload.app_id:
-        body["app_id"] = payload.app_id
-
     try:
         with _sdk_client(token) as api_client:
-            api = xfloor_memory_sdk.DefaultApi(api_client)
-            response = api.sign_in_with_mobile_number_with_http_info(body=body)
+            api = xfloor_memory_sdk.AuthApi(api_client)
+            response = api.sign_in_with_mobile_number_with_http_info(
+                mobile_number=payload.mobile_number,
+                pass_code=payload.pass_code,
+                login_type=payload.login_type,
+                app_id=payload.app_id,
+            )
             auth_header = _extract_auth_header(response.headers)
             data = _to_plain(response.data)
             if auth_header and isinstance(data, dict):
@@ -505,19 +516,16 @@ def send_validation_code(
 ):
     token = _extract_access_token(authorization)
 
-    request_payload: Dict[str, Any] = {"mode": payload.mode}
-    if payload.user_id:
-        request_payload["user_id"] = payload.user_id
-    if payload.email_id:
-        request_payload["email_id"] = payload.email_id
-    if payload.mobile_number:
-        request_payload["mobiles_number"] = payload.mobile_number
-
     try:
         with _sdk_client(token) as api_client:
-            api = xfloor_memory_sdk.DefaultApi(api_client)
-            request_model = xfloor_memory_sdk.SendValidationCodeRequest.from_dict(request_payload)
-            response = api.send_validation_code(request_model)
+            api = xfloor_memory_sdk.AuthApi(api_client)
+            response = api.send_validation_code(
+                mode=payload.mode,
+                user_id=payload.user_id,
+                email_id=payload.email_id,
+                mobile_number=payload.mobile_number,
+                app_id=payload.app_id,
+            )
             return _to_plain(response)
     except ApiException as exc:
         return _sdk_exception_response(exc)

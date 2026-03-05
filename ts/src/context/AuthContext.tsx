@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type {
-  GetFloorInformation200Response,
-  SignInWithEmail200Response,
+  FloorInfo,
+  SignInResponse,
   SignUp200Response,
 } from '@xfloor/floor-memory-sdk-ts';
 import { authService } from '../services/authService';
@@ -27,23 +27,23 @@ type SetCredentialsInput = {
   appId: string;
   podFloorId: string;
   userId: string;
-  floorInfo?: GetFloorInformation200Response;
+  floorInfo?: FloorInfo;
 };
 
 type AuthContextValue = {
   isAuthenticated: boolean;
   user: AuthUser | null;
-  podInfo: GetFloorInformation200Response | null;
+  podInfo: FloorInfo | null;
   loading: boolean;
   signUp: (userData: Parameters<typeof authService.signUp>[0]) => Promise<SignUp200Response>;
   signInWithEmail: (
     credentials: Parameters<typeof authService.signInWithEmail>[0]
-  ) => Promise<SignInWithEmail200Response>;
+  ) => Promise<SignInResponse>;
   signInWithMobile: (
     credentials: Parameters<typeof authService.signInWithMobile>[0]
-  ) => Promise<SignInWithEmail200Response>;
+  ) => Promise<SignInResponse>;
   signOut: () => void;
-  updatePodInfo: (newPodInfo: GetFloorInformation200Response) => void;
+  updatePodInfo: (newPodInfo: FloorInfo) => void;
   setCredentials: (credentials: SetCredentialsInput) => Promise<void>;
 };
 
@@ -60,7 +60,7 @@ export const useAuth = (): AuthContextValue => {
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState<AuthUser | null>(null);
-  const [podInfo, setPodInfo] = useState<GetFloorInformation200Response | null>(null);
+  const [podInfo, setPodInfo] = useState<FloorInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -93,25 +93,29 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const signInWithEmail = async (credentials: Parameters<typeof authService.signInWithEmail>[0]) => {
     const response = await authService.signInWithEmail(credentials);
+    const sessionPodInfo = authService.getPodInfo();
+
     setIsAuthenticated(true);
     setUser({
       userId: response.profile.userId,
       floorId: response.podInfo.floorId,
       profile: response.profile as unknown as StoredProfile,
     });
-    setPodInfo(response.podInfo as unknown as GetFloorInformation200Response);
+    setPodInfo(sessionPodInfo);
     return response;
   };
 
   const signInWithMobile = async (credentials: Parameters<typeof authService.signInWithMobile>[0]) => {
     const response = await authService.signInWithMobile(credentials);
+    const sessionPodInfo = authService.getPodInfo();
+
     setIsAuthenticated(true);
     setUser({
       userId: response.profile.userId,
       floorId: response.podInfo.floorId,
       profile: response.profile as unknown as StoredProfile,
     });
-    setPodInfo(response.podInfo as unknown as GetFloorInformation200Response);
+    setPodInfo(sessionPodInfo);
     return response;
   };
 
@@ -122,7 +126,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setPodInfo(null);
   };
 
-  const updatePodInfo = (newPodInfo: GetFloorInformation200Response) => {
+  const updatePodInfo = (newPodInfo: FloorInfo) => {
     setPodInfo(newPodInfo);
     localStorage.setItem('xfloor_pod_info', JSON.stringify(newPodInfo));
   };
@@ -133,7 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('xfloor_user_id', credentials.userId);
     localStorage.setItem('xfloor_floor_id', credentials.podFloorId);
 
-    const fallbackPodInfo: GetFloorInformation200Response = {
+    const fallbackPodInfo: FloorInfo = {
       floorId: credentials.podFloorId,
       title: `Floor ${credentials.podFloorId}`,
       details: '',

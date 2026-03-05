@@ -23,7 +23,7 @@ export default function RecentEvents() {
     setError(null);
 
     try {
-      // Use SDK's GetRecentEventsApi
+      // Use SDK EventApi#getRecentEvents via memory client wrapper
       const recentEventsApi = getRecentEventsApi();
 
       return new Promise((resolve, reject) => {

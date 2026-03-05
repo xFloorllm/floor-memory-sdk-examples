@@ -126,10 +126,18 @@ export const getEventApi = () => ({
       optsOrCallback,
       maybeCallback,
     );
+    const userId =
+      opts?.userId ||
+      opts?.user_id ||
+      localStorage.getItem('xfloor_user_id') ||
+      null;
 
     const formData = new FormData();
     formData.append('input_info', inputInfo);
     formData.append('app_id', appId);
+    if (userId) {
+      formData.append('user_id', userId);
+    }
 
     const files = opts?.files;
     if (Array.isArray(files)) {

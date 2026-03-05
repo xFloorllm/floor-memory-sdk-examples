@@ -1,34 +1,29 @@
 package ai.xfloor.examples.memory.controller;
 
 import ai.xfloor.examples.memory.config.XfloorProperties;
-import ai.xfloor.memory.api.DefaultApi;
-import ai.xfloor.memory.api.EditFloorApi;
+import ai.xfloor.memory.api.AuthApi;
 import ai.xfloor.memory.api.EventApi;
-import ai.xfloor.memory.api.GetFloorInformationApi;
-import ai.xfloor.memory.api.GetRecentEventsApi;
+import ai.xfloor.memory.api.FloorApi;
 import ai.xfloor.memory.api.QueryApi;
 import ai.xfloor.memory.client.ApiClient;
 import ai.xfloor.memory.client.ApiException;
 import ai.xfloor.memory.client.ApiResponse;
 import ai.xfloor.memory.client.JSON;
 import ai.xfloor.memory.client.Pair;
-import ai.xfloor.memory.model.ConversationThreads200Response;
+import ai.xfloor.memory.model.EditFloor200Response;
 import ai.xfloor.memory.model.EventResponse;
-import ai.xfloor.memory.model.GetConversations200Response;
-import ai.xfloor.memory.model.GetFloorInformation200Response;
+import ai.xfloor.memory.model.FloorInfo;
 import ai.xfloor.memory.model.GetRecentEvents200Response;
 import ai.xfloor.memory.model.QueryRequest;
 import ai.xfloor.memory.model.QueryRequestFilters;
 import ai.xfloor.memory.model.QueryResponse;
-import ai.xfloor.memory.model.SendValidationCodeRequest;
-import ai.xfloor.memory.model.SignInWithEmail200Response;
+import ai.xfloor.memory.model.SendValidationCode200Response;
+import ai.xfloor.memory.model.SignInResponse;
 import ai.xfloor.memory.model.SignUp200Response;
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -101,16 +96,9 @@ public class MemoryController {
       tempFiles = toTempFiles(files);
       ApiClient client = createClient(accessToken);
       EventApi api = new EventApi(client);
-      EventResponse response;
-      System.out.println("Input INfo:" + inputInfo);
-      if (tempFiles.isEmpty()) {
-        response = api.event(inputInfo, appId, null);
-      } else if (tempFiles.size() == 1) {
-        response = api.event(inputInfo, appId, tempFiles.get(0));
-      } else {
-        response = createEventWithMultipleFiles(client, inputInfo, appId, tempFiles);
-      }
-
+      String userId = extractUserIdFromInputInfo(inputInfo);
+      EventResponse response =
+          api.event(inputInfo, appId, userId, tempFiles.isEmpty() ? null : tempFiles);
       return ResponseEntity.ok(toPlain(response));
     } catch (ApiException ex) {
       return sdkExceptionResponse(ex);
@@ -130,7 +118,7 @@ public class MemoryController {
     String accessToken = extractAccessToken(authorization);
 
     try {
-      GetRecentEventsApi api = new GetRecentEventsApi(createClient(accessToken));
+      EventApi api = new EventApi(createClient(accessToken));
       GetRecentEvents200Response response = api.getRecentEvents(floorId, appId, userId);
       return ResponseEntity.ok(toPlain(response));
     } catch (ApiException ex) {
@@ -155,8 +143,8 @@ public class MemoryController {
         maskToken(accessToken));
 
     try {
-      GetFloorInformationApi api = new GetFloorInformationApi(createClient(accessToken));
-      GetFloorInformation200Response response = api.getFloorInformation(floorId, appId, userId);
+      FloorApi api = new FloorApi(createClient(accessToken));
+      FloorInfo response = api.getFloorInformation(floorId, appId, userId);
       return ResponseEntity.ok(toPlain(response));
     } catch (ApiException ex) {
       log.warn(
@@ -186,9 +174,8 @@ public class MemoryController {
 
     try {
       logoTempFile = toTempFile(logoFile);
-      EditFloorApi api = new EditFloorApi(createClient(accessToken));
-      GetFloorInformation200Response response =
-          api.editFloor(floorId, userId, appId, logoTempFile, title, details);
+      FloorApi api = new FloorApi(createClient(accessToken));
+      EditFloor200Response response = api.editFloor(floorId, userId, appId, logoTempFile, title, details);
       return ResponseEntity.ok(toPlain(response));
     } catch (ApiException ex) {
       return sdkExceptionResponse(ex);
@@ -207,8 +194,8 @@ public class MemoryController {
     String accessToken = extractAccessToken(authorization);
 
     try {
-      DefaultApi api = new DefaultApi(createClient(accessToken));
-      GetConversations200Response response = api.getConversations(userId, threadId);
+      ApiClient client = createClient(accessToken);
+      Object response = getConversations(client, userId, threadId);
       return ResponseEntity.ok(toPlain(response));
     } catch (ApiException ex) {
       return sdkExceptionResponse(ex);
@@ -225,8 +212,8 @@ public class MemoryController {
     String accessToken = extractAccessToken(authorization);
 
     try {
-      DefaultApi api = new DefaultApi(createClient(accessToken));
-      ConversationThreads200Response response = api.conversationThreads(userId, floorId);
+      ApiClient client = createClient(accessToken);
+      Object response = getConversationThreads(client, userId, floorId);
       return ResponseEntity.ok(toPlain(response));
     } catch (ApiException ex) {
       return sdkExceptionResponse(ex);
@@ -248,7 +235,7 @@ public class MemoryController {
       String mobileNumber = optionalString(payload, "mobile_number");
       String appId = optionalString(payload, "app_id");
 
-      DefaultApi api = new DefaultApi(createClient(accessToken));
+      AuthApi api = new AuthApi(createClient(accessToken));
       ApiResponse<SignUp200Response> response =
           api.signUpWithHttpInfo(name, password, emailId, mobileNumber, appId);
 
@@ -274,8 +261,8 @@ public class MemoryController {
       String loginType = requiredString(payload, "login_type");
       String appId = optionalString(payload, "app_id");
 
-      DefaultApi api = new DefaultApi(createClient(accessToken));
-      ApiResponse<SignInWithEmail200Response> response =
+      AuthApi api = new AuthApi(createClient(accessToken));
+      ApiResponse<SignInResponse> response =
           api.signInWithEmailWithHttpInfo(emailId, passCode, loginType, appId);
 
       String authHeader = extractAuthorizationHeader(response.getHeaders());
@@ -295,18 +282,14 @@ public class MemoryController {
     String accessToken = extractAccessToken(authorization);
 
     try {
-      Map<String, Object> body = new LinkedHashMap<>();
-      body.put("mobile_number", requiredString(payload, "mobile_number"));
-      body.put("pass_code", requiredString(payload, "pass_code"));
-      body.put("login_type", requiredString(payload, "login_type"));
-
+      String mobileNumber = requiredString(payload, "mobile_number");
+      String passCode = requiredString(payload, "pass_code");
+      String loginType = requiredString(payload, "login_type");
       String appId = optionalString(payload, "app_id");
-      if (appId != null) {
-        body.put("app_id", appId);
-      }
 
-      DefaultApi api = new DefaultApi(createClient(accessToken));
-      ApiResponse<SignInWithEmail200Response> response = api.signInWithMobileNumberWithHttpInfo(body);
+      AuthApi api = new AuthApi(createClient(accessToken));
+      ApiResponse<SignInResponse> response =
+          api.signInWithMobileNumberWithHttpInfo(mobileNumber, passCode, loginType, appId);
 
       String authHeader = extractAuthorizationHeader(response.getHeaders());
       Object responseBody = attachToken(toPlain(response.getData()), authHeader);
@@ -325,26 +308,15 @@ public class MemoryController {
     String accessToken = extractAccessToken(authorization);
 
     try {
-      SendValidationCodeRequest request = new SendValidationCodeRequest();
-      request.mode(requiredString(payload, "mode"));
-
+      String mode = requiredString(payload, "mode");
       String userId = optionalString(payload, "user_id");
-      if (userId != null) {
-        request.userId(userId);
-      }
-
       String emailId = optionalString(payload, "email_id");
-      if (emailId != null) {
-        request.emailId(emailId);
-      }
-
       String mobileNumber = optionalString(payload, "mobile_number");
-      if (mobileNumber != null) {
-        request.mobilesNumber(mobileNumber);
-      }
+      String appId = optionalString(payload, "app_id");
 
-      DefaultApi api = new DefaultApi(createClient(accessToken));
-      Object response = api.sendValidationCode(request);
+      AuthApi api = new AuthApi(createClient(accessToken));
+      SendValidationCode200Response response =
+          api.sendValidationCode(mode, userId, mobileNumber, emailId, appId);
       return ResponseEntity.ok(toPlain(response));
     } catch (ApiException ex) {
       return sdkExceptionResponse(ex);
@@ -372,33 +344,46 @@ public class MemoryController {
     return client;
   }
 
-  private EventResponse createEventWithMultipleFiles(
-      ApiClient apiClient, String inputInfo, String appId, List<File> files) throws ApiException {
-    Map<String, Object> formParams = new LinkedHashMap<>();
-    formParams.put("files", files);
-    formParams.put("input_info", inputInfo);
-    formParams.put("app_id", appId);
+  private Object getConversations(ApiClient apiClient, String userId, String threadId)
+      throws ApiException {
+    List<Pair> queryParams = new ArrayList<>();
+    if (userId != null) {
+      queryParams.addAll(apiClient.parameterToPair("user_id", userId));
+    }
+    if (threadId != null) {
+      queryParams.addAll(apiClient.parameterToPair("thread_id", threadId));
+    }
+    return executeGet(apiClient, "/agent/memory/conversations", queryParams);
+  }
 
+  private Object getConversationThreads(ApiClient apiClient, String userId, String floorId)
+      throws ApiException {
+    List<Pair> queryParams = new ArrayList<>();
+    queryParams.addAll(apiClient.parameterToPair("user_id", userId));
+    queryParams.addAll(apiClient.parameterToPair("floor_id", floorId));
+    return executeGet(apiClient, "/agent/memory/threads", queryParams);
+  }
+
+  private Object executeGet(ApiClient apiClient, String path, List<Pair> queryParams)
+      throws ApiException {
     Map<String, String> headerParams = new LinkedHashMap<>();
     headerParams.put("Accept", "application/json");
-    headerParams.put("Content-Type", "multipart/form-data");
 
     Call call =
         apiClient.buildCall(
             apiClient.getBasePath(),
-            "/api/memory/events",
-            "POST",
-            new ArrayList<Pair>(),
-            new ArrayList<Pair>(),
+            path,
+            "GET",
+            queryParams,
+            new ArrayList<>(),
             null,
             headerParams,
             new LinkedHashMap<String, String>(),
-            formParams,
+            new LinkedHashMap<String, Object>(),
             new String[] {"bearer"},
             null);
 
-    Type returnType = new TypeToken<EventResponse>() {}.getType();
-    ApiResponse<EventResponse> response = apiClient.execute(call, returnType);
+    ApiResponse<Object> response = apiClient.execute(call, Object.class);
     return response.getData();
   }
 
@@ -419,6 +404,17 @@ public class MemoryController {
     }
 
     return request;
+  }
+
+  private String extractUserIdFromInputInfo(String inputInfo) {
+    Object parsed = parseJson(inputInfo);
+    if (parsed instanceof Map<?, ?> payload) {
+      String userId = asNonBlankString(payload.get("user_id"));
+      if (userId != null) {
+        return userId;
+      }
+    }
+    throw new IllegalArgumentException("input_info must include user_id");
   }
 
   private QueryRequestFilters buildFilters(Map<String, Object> filtersPayload) {
